@@ -232,6 +232,7 @@ button{font-family:inherit;cursor:pointer}
         <button class="chip" data-cat="np">국립공원</button>
         <button class="chip" data-cat="pp">도립공원</button>
         <button class="chip" data-cat="easy">초보추천</button>
+        <button class="chip" data-cat="done">✓ 등정완료</button>
         <button class="chip" id="chipRegion">지역 ▾</button>
         <button class="chip" id="chipSeason">계절 ▾</button>
       </div>
@@ -401,7 +402,10 @@ function toggleSummit(n){
   else{summits.push(n);toast("🎉 "+n+" 등정 완료!");}
   saveSummits();refreshSummitUI();
 }
-function refreshSummitUI(){buildMarkers();renderProgress();if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
+function refreshSummitUI(){
+  if(typeof filters!=="undefined"&&filters.cat==="done")applyFilters(); // 등정완료 필터 중이면 목록도 갱신
+  else buildMarkers();
+  renderProgress();if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
 
 /* ===== Supabase 서버 동기화 ===== */
 const LS_DEVICE="mtapp_device";
@@ -585,6 +589,7 @@ function applyFilters(){
     if(filters.cat==="np"&&!m.np)return false;
     if(filters.cat==="pp"&&!m.pp)return false;
     if(filters.cat==="easy"&&m.df>2)return false;
+    if(filters.cat==="done"&&!isSummited(m.name))return false;
     if(filters.region&&!mountainSidos(m).includes(filters.region))return false;
     if(filters.season&&!m.s.includes(filters.season))return false;
     return true;
