@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject keys from Secrets
+        env:
+          KAKAO_APP_KEY: ${{ secrets.KAKAO_APP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          p = 'index.html'
+          html = open(p, encoding='utf-8').read()
+          repl = {
+              '여기에_카카오_앱키_입력': os.environ.get('KAKAO_APP_KEY', ''),
+              '여기에_SUPABASE_URL_입력': os.environ.get('SUPABASE_URL', ''),
+              '여기에_SUPABASE_ANON_KEY_입력': os.environ.get('SUPABASE_ANON_KEY', ''),
+          }
+          for ph, val in repl.items():
+              if val:
+                  html = html.replace(ph, val)
+          open(p, 'w', encoding='utf-8').write(html)
+          print('done: missing secrets stay as placeholders')
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
