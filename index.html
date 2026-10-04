@@ -500,6 +500,41 @@ function initMap(){
   mapReady=true;
   $("#sdkBanner").classList.add("hidden");
   buildMarkers();
+  initLocation();
+}
+/* ===== 내 위치: 시작 시 1회 확인 후 localStorage에 저장, 재사용 시 권한 재요청 없음 ===== */
+const LS_POS="mtapp_lastpos",POS_TTL=10*60*1000;
+function getCachedPos(){
+  try{const o=JSON.parse(localStorage.getItem(LS_POS)||"null");if(o&&o.lat&&o.lng)return o;}catch(e){}
+  return null;
+}
+function freshPos(){const c=getCachedPos();return c&&(Date.now()-c.t<POS_TTL)?c:null;}
+function savePos(lat,lng){try{localStorage.setItem(LS_POS,JSON.stringify({lat:lat,lng:lng,t:Date.now()}));}catch(e){}}
+function showMe(lat,lng){
+  const pos=new kakao.maps.LatLng(lat,lng);
+  if(meOverlay)meOverlay.setMap(null);
+  meOverlay=new kakao.maps.CustomOverlay({position:pos,content:'<div class="me-dot"></div>',xAnchor:0.5,yAnchor:0.5});
+  meOverlay.setMap(map);
+  return pos;
+}
+function requestPos(onOk){
+  navigator.geolocation.getCurrentPosition(p=>{
+    const lat=p.coords.latitude,lng=p.coords.longitude;
+    savePos(lat,lng);
+    if(mapReady)showMe(lat,lng);
+    if(onOk)onOk(lat,lng);
+  },()=>{toast("위치를 가져오지 못했어요. HTTPS(배포) 환경에서 위치 권한을 허용해 주세요.");},{enableHighAccuracy:true,timeout:8000});
+}
+function initLocation(){
+  if(!navigator.geolocation)return;
+  const c=getCachedPos();
+  if(c)showMe(c.lat,c.lng); // 마지막 위치를 먼저 표시 (권한 요청 없음)
+  if(freshPos())return; // 10분 이내 기록이 있으면 새로 요청하지 않음
+  if(navigator.permissions&&navigator.permissions.query){
+    navigator.permissions.query({name:"geolocation"}).then(st=>{
+      if(st.state!=="denied")requestPos();
+    }).catch(()=>requestPos());
+  }else requestPos();
 }
 // SDK 로드 실패 또는 앱키 미입력 시 지도 탭에 안내 배너만 표시 (다른 탭은 정상 동작)
 function showSdkError(){$("#sdkBanner").classList.remove("hidden");}
@@ -521,13 +556,9 @@ $$("#maptypeSeg button").forEach(b=>b.addEventListener("click",()=>{
 $("#locateBtn").addEventListener("click",()=>{
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
   if(!navigator.geolocation){toast("이 기기에서 위치 기능을 사용할 수 없어요.");return;}
-  navigator.geolocation.getCurrentPosition(p=>{
-    const pos=new kakao.maps.LatLng(p.coords.latitude,p.coords.longitude);
-    if(meOverlay)meOverlay.setMap(null);
-    meOverlay=new kakao.maps.CustomOverlay({position:pos,content:'<div class="me-dot"></div>',xAnchor:0.5,yAnchor:0.5});
-    meOverlay.setMap(map);
-    map.panTo(pos);
-  },()=>{toast("위치를 가져오지 못했어요. HTTPS(배포) 환경에서 위치 권한을 허용해 주세요.");},{enableHighAccuracy:true,timeout:8000});
+  const c=freshPos();
+  if(c){map.panTo(showMe(c.lat,c.lng));return;} // 저장된 위치 재사용: 권한을 다시 묻지 않음
+  requestPos((lat,lng)=>map.panTo(new kakao.maps.LatLng(lat,lng)));
 });
 
 /* ===== 필터 + 검색 ===== */
