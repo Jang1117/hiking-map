@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>등산 지도 — 전국 명산 & GPS 기록</title>
+<!-- 카카오맵 SDK: 아래 JS 상수 KAKAO_APP_KEY에 본인의 JavaScript 키를 입력하면 이 태그가 자동으로 SDK를 불러옵니다 -->
+<script id="kakao-sdk-loader"></script>
+<style>
+/* ===== 기본 ===== */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overscroll-behavior:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#f5f6f5;color:#212121;font-size:15px}
+button{font-family:inherit;cursor:pointer}
+.hidden{display:none!important}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+.tabpage{flex:1;position:relative;display:none;overflow:hidden;background:#f5f6f5}
+.tabpage.active{display:block}
+
+/* ===== 하단 탭바 ===== */
+#tabbar{height:62px;flex:0 0 62px;background:#fff;border-top:1px solid #e0e0e0;display:flex;z-index:2000}
+#tabbar button{flex:1;border:0;background:none;font-size:12px;color:#757575;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px}
+#tabbar button .ic{font-size:21px;line-height:1}
+#tabbar button.active{color:#2e7d32;font-weight:700}
+
+/* ===== 지도 탭 ===== */
+#map{position:absolute;inset:0;z-index:0}
+/* 카카오 우상단 지도타입 컨트롤이 검색창과 겹치지 않도록 오른쪽 여백 확보 */
+#searchWrap{margin-right:78px}
+/* 카카오 앱키 안내 배너 */
+#sdkBanner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1500;background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:26px 24px;max-width:86%;text-align:center}
+#sdkBanner .sb-t{font-size:17px;font-weight:800;margin-bottom:10px}
+#sdkBanner .sb-d{font-size:14px;color:#616161;line-height:1.7}
+#sdkBanner .sb-d b{color:#2e7d32}
+
+/* 상단 오버레이 */
+#topbar{position:absolute;top:0;left:0;right:0;z-index:1000;padding:10px 12px 0;pointer-events:none}
+#topbar>*{pointer-events:auto}
+#searchWrap{position:relative}
+#searchInput{width:100%;height:46px;border:0;border-radius:23px;padding:0 18px;font-size:15px;box-shadow:0 2px 10px rgba(0,0,0,.18);outline:none;background:#fff}
+#searchDrop{position:absolute;top:52px;left:0;right:0;background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.2);overflow:hidden;max-height:300px;overflow-y:auto}
+.sr-item{padding:11px 16px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;min-height:48px}
+.sr-item:last-child{border-bottom:0}
+.sr-item .n{font-weight:600}
+.sr-item .r{font-size:12px;color:#757575;margin-left:6px}
+.sr-item .h{font-size:12px;color:#2e7d32;font-weight:600;white-space:nowrap}
+#chips{display:flex;gap:8px;overflow-x:auto;padding:10px 2px 4px;scrollbar-width:none}
+#chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;height:36px;padding:0 14px;border-radius:18px;border:1px solid #d7d7d7;background:#fff;font-size:13px;color:#424242;white-space:nowrap}
+.chip.active{background:#2e7d32;border-color:#2e7d32;color:#fff;font-weight:600}
+.chip.picked{background:#e8f5e9;border-color:#2e7d32;color:#2e7d32;font-weight:600}
+.dropPanel{position:absolute;top:112px;left:12px;right:12px;background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:10px;z-index:1001;max-height:260px;overflow-y:auto}
+.dropPanel .opt{display:block;width:100%;text-align:left;border:0;background:none;padding:11px 12px;font-size:14px;border-radius:8px;min-height:44px}
+.dropPanel .opt:active{background:#e8f5e9}
+.dropPanel .opt.sel{color:#2e7d32;font-weight:700}
+.dropPanel .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.dropPanel .grid .opt{text-align:center;border:1px solid #e0e0e0}
+
+/* 내 위치 버튼 */
+#locateBtn{position:absolute;top:118px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px;color:#2e7d32}
+
+/* GPS 플로팅 */
+#trackFab{position:absolute;right:14px;bottom:170px;z-index:1000;border:0;background:#2e7d32;color:#fff;font-size:15px;font-weight:700;border-radius:999px;padding:14px 20px;box-shadow:0 4px 14px rgba(46,125,50,.45)}
+#trackBar{position:absolute;top:118px;left:12px;right:70px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:10px 12px}
+#trackBar .stats{display:flex;gap:14px;margin-bottom:8px}
+#trackBar .stat .v{font-size:17px;font-weight:800;color:#1b5e20}
+#trackBar .stat .l{font-size:11px;color:#757575}
+#trackBar .tbtns{display:flex;gap:8px}
+.tbtn{flex:1;border:0;border-radius:10px;padding:11px 0;font-size:14px;font-weight:700;min-height:44px}
+.tbtn.pause{background:#fff3e0;color:#e65100}
+.tbtn.end{background:#2e7d32;color:#fff}
+
+/* 산 마커는 카카오 MarkerImage(SVG 뱃지)로 렌더링 — CSS 불필요 */
+.me-dot{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,115,232,.25),0 2px 6px rgba(0,0,0,.3);transform:translate(-50%,-50%)}
+
+/* 바텀시트 */
+#sheet{position:absolute;left:0;right:0;bottom:0;z-index:1100;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:72%;transition:height .18s ease;touch-action:none}
+#sheet.collapsed{height:64px}
+#sheet.expanded{height:72%}
+#sheetHandle{padding:8px 0 2px;display:flex;justify-content:center;flex:0 0 auto;cursor:grab}
+#sheetHandle span{width:44px;height:5px;border-radius:3px;background:#cfcfcf}
+#sheetSummary{flex:0 0 auto;padding:2px 18px 10px;font-size:14px;font-weight:600;color:#424242;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#sheetSummary .sub{font-weight:400;color:#757575;font-size:12px;margin-left:6px}
+#sheetBody{flex:1;overflow-y:auto;padding:4px 14px 20px;display:none}
+#sheet.expanded #sheetBody{display:block}
+
+/* 산 카드 */
+.mcard{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.mcard:active{background:#f9f9f9}
+.mcard .t{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mcard .nm{font-size:16px;font-weight:800}
+.mcard .hg{font-size:13px;color:#2e7d32;font-weight:700;white-space:nowrap}
+.mcard .rg{font-size:13px;color:#757575;margin-top:3px}
+.mcard .ds{font-size:13px;color:#616161;margin-top:7px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.bdg{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px}
+.bdg.top100{background:#e8f5e9;color:#2e7d32}
+.bdg.np{background:#1b5e20;color:#fff}
+.bdg.done{background:#fff3e0;color:#e65100}
+.bdg.season{background:#e3f2fd;color:#1565c0}
+.diffbar{display:inline-flex;gap:3px;vertical-align:middle;margin-left:6px}
+.diffbar i{width:14px;height:6px;border-radius:3px;background:#e0e0e0}
+.diffbar i.on{background:#2e7d32}
+
+/* 상세 */
+#detailBack{border:0;background:none;color:#2e7d32;font-size:14px;font-weight:700;padding:10px 4px;min-height:44px}
+.d-title{font-size:21px;font-weight:800;margin:2px 0 4px}
+.d-meta{font-size:14px;color:#616161;line-height:1.7}
+.d-desc{font-size:14px;line-height:1.7;color:#424242;margin:12px 0;background:#fafafa;border-radius:12px;padding:12px}
+.d-btns{display:flex;gap:10px;margin-top:14px}
+.btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:15px;font-weight:700;min-height:50px}
+.btn.primary{background:#2e7d32;color:#fff}
+.btn.ghost{background:#fff;color:#2e7d32;border:1.5px solid #2e7d32}
+.btn.warn{background:#fff;color:#c62828;border:1.5px solid #c62828}
+.btn.done-on{background:#ffa000;color:#fff}
+
+/* 발견 탭 */
+.page{height:100%;overflow-y:auto;padding:16px 14px 24px}
+.sec-title{font-size:18px;font-weight:800;margin:6px 2px 12px}
+.rec-box{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:20px}
+.rec-row{margin-bottom:12px}
+.rec-row label{display:block;font-size:13px;color:#616161;margin-bottom:6px;font-weight:600}
+.rec-row select{width:100%;height:48px;border:1px solid #d5d5d5;border-radius:12px;font-size:15px;padding:0 12px;background:#fff;font-family:inherit}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0 2px;font-size:14px;font-weight:600}
+.switch{position:relative;width:52px;height:30px;flex:0 0 auto}
+.switch input{opacity:0;width:100%;height:100%;position:absolute;margin:0;z-index:2}
+.sw-ui{position:absolute;inset:0;background:#cfcfcf;border-radius:15px;transition:.15s}
+.sw-ui:after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked+.sw-ui{background:#2e7d32}
+.switch input:checked+.sw-ui:after{left:25px}
+.big-card{background:linear-gradient(135deg,#2e7d32,#66bb6a);border-radius:16px;color:#fff;padding:22px 18px;margin-top:14px;box-shadow:0 4px 14px rgba(46,125,50,.35)}
+.big-card .bn{font-size:24px;font-weight:800}
+.big-card .bi{font-size:14px;opacity:.92;margin-top:6px;line-height:1.6}
+.big-card .btn{margin-top:14px;background:#fff;color:#2e7d32}
+.hscroll{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.hscroll::-webkit-scrollbar{display:none}
+.hcard{flex:0 0 158px;background:#fff;border-radius:12px;padding:13px;border:1px solid #e8e8e8;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.hcard .n{font-weight:800;font-size:14px}
+.hcard .h{font-size:12px;color:#2e7d32;font-weight:700;margin-top:2px}
+.hcard .r{font-size:12px;color:#757575;margin-top:2px}
+.prog{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:20px}
+.prog .pt{font-size:14px;font-weight:700;margin-bottom:8px}
+.prog .bar{height:10px;border-radius:5px;background:#e0e0e0;overflow:hidden}
+.prog .bar i{display:block;height:100%;background:#2e7d32;border-radius:5px}
+
+/* 기록 탭 */
+#recordTop{padding:16px 14px 6px}
+.rec-card{background:#fff;border-radius:12px;padding:14px;margin:0 14px 10px;border:1px solid #e8e8e8;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.rec-card .rn{font-weight:800;font-size:15px}
+.rec-card .rd{font-size:12px;color:#757575;margin-top:2px}
+.rec-card .rs{display:flex;gap:14px;margin-top:8px;font-size:13px}
+.rec-card .rs b{color:#1b5e20}
+.rec-card .rb{display:flex;gap:8px;margin-top:10px}
+.sbtn{flex:1;border:1px solid #d5d5d5;background:#fff;border-radius:10px;padding:10px 0;font-size:13px;font-weight:600;min-height:42px}
+.sbtn.del{color:#c62828;border-color:#ef9a9a}
+.empty{padding:40px 20px;text-align:center;color:#9e9e9e;font-size:14px;line-height:1.7}
+
+/* 저장 모달 */
+#saveModal{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#saveBox{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:20px 18px 26px}
+#saveBox h3{margin:0 0 14px;font-size:18px}
+#saveBox label{display:block;font-size:13px;font-weight:600;color:#616161;margin:12px 0 6px}
+#saveBox input[type=text],#saveBox select,#saveBox textarea{width:100%;border:1px solid #d5d5d5;border-radius:12px;padding:12px;font-size:15px;font-family:inherit}
+#saveBox textarea{height:80px;resize:none}
+#saveBox .row{display:flex;gap:10px;margin-top:18px}
+
+/* 토스트 */
+#toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:4000;background:#323232;color:#fff;border-radius:999px;padding:12px 20px;font-size:14px;max-width:88%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+@media(min-width:700px){.hcard{flex-basis:180px}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 지도 탭 ============ -->
+  <section id="tab-map" class="tabpage active">
+    <div id="map"></div>
+    <div id="sdkBanner" class="hidden">
+      <div class="sb-t">🗺 카카오 앱키를 입력해주세요</div>
+      <div class="sb-d">developers.kakao.com에서 JavaScript 키를 발급받아<br>파일 상단의 <b>KAKAO_APP_KEY</b>에 입력하세요.</div>
+    </div>
+    <div id="topbar">
+      <div id="searchWrap">
+        <input id="searchInput" type="text" placeholder="산 이름 검색 (예: 지리산)" autocomplete="off">
+        <div id="searchDrop" class="hidden"></div>
+      </div>
+      <div id="chips">
+        <button class="chip active" data-cat="all">전체</button>
+        <button class="chip" data-cat="top100">100대명산</button>
+        <button class="chip" data-cat="np">국립공원</button>
+        <button class="chip" data-cat="easy">초보추천</button>
+        <button class="chip" id="chipRegion">지역 ▾</button>
+        <button class="chip" id="chipSeason">계절 ▾</button>
+      </div>
+      <div id="regionPanel" class="dropPanel hidden"><div id="regionOpts"></div></div>
+      <div id="seasonPanel" class="dropPanel hidden"><div class="grid" id="seasonOpts"></div></div>
+    </div>
+    <button id="locateBtn" title="내 위치">◎</button>
+    <button id="trackFab">🥾 등산 시작</button>
+    <div id="trackBar" class="hidden">
+      <div class="stats">
+        <div class="stat"><div class="v" id="stTime">00:00</div><div class="l">경과시간</div></div>
+        <div class="stat"><div class="v" id="stDist">0m</div><div class="l">이동거리</div></div>
+        <div class="stat"><div class="v" id="stGain">0m</div><div class="l">누적 상승</div></div>
+      </div>
+      <div class="tbtns">
+        <button class="tbtn pause" id="btnPause">일시정지</button>
+        <button class="tbtn end" id="btnEnd">종료</button>
+      </div>
+    </div>
+    <div id="sheet" class="collapsed">
+      <div id="sheetHandle"><span></span></div>
+      <div id="sheetSummary"></div>
+      <div id="sheetBody"></div>
+    </div>
+  </section>
+
+  <!-- ============ 발견 탭 ============ -->
+  <section id="tab-discover" class="tabpage">
+    <div class="page">
+      <div class="prog">
+        <div class="pt" id="progText">100대명산 중 0곳 등정</div>
+        <div class="bar"><i id="progBar" style="width:0%"></i></div>
+      </div>
+      <div class="sec-title">이번 주말, 어디로 갈까요?</div>
+      <div class="rec-box">
+        <div class="rec-row"><label>지역</label><select id="recRegion"></select></div>
+        <div class="rec-row"><label>난이도</label><select id="recDiff">
+          <option value="">전체</option><option value="easy">쉬움 (1~2)</option>
+          <option value="mid">보통 (3)</option><option value="hard">어려움 (4~5)</option>
+        </select></div>
+        <div class="toggle-row"><span>아직 안 가본 산만</span>
+          <span class="switch"><input type="checkbox" id="recUnvisited" checked><span class="sw-ui"></span></span>
+        </div>
+        <button class="btn primary" id="btnRecommend" style="margin-top:12px">추천받기</button>
+        <div id="recResult"></div>
+      </div>
+      <div class="sec-title" id="seasonTitle">지금 계절 추천</div>
+      <div class="hscroll" id="seasonCards"></div>
+    </div>
+  </section>
+
+  <!-- ============ 기록 탭 ============ -->
+  <section id="tab-record" class="tabpage">
+    <div class="page" style="padding-bottom:8px">
+      <div class="sec-title">등산 기록</div>
+      <div class="rec-box" id="recordCtlBox">
+        <div id="recordIdle">
+          <div style="font-size:14px;color:#616161;line-height:1.7;margin-bottom:12px">GPS로 이동 경로를 추적하고<br>거리·시간·상승고도를 기록하세요.</div>
+          <button class="btn primary" id="btnStart2">🥾 등산 시작</button>
+        </div>
+        <div id="recordActive" class="hidden">
+          <div class="stats" style="display:flex;gap:16px;margin-bottom:10px">
+            <div class="stat"><div class="v" id="stTime2" style="font-size:18px;font-weight:800;color:#1b5e20">00:00</div><div class="l" style="font-size:11px;color:#757575">경과시간</div></div>
+            <div class="stat"><div class="v" id="stDist2" style="font-size:18px;font-weight:800;color:#1b5e20">0m</div><div class="l" style="font-size:11px;color:#757575">이동거리</div></div>
+            <div class="stat"><div class="v" id="stGain2" style="font-size:18px;font-weight:800;color:#1b5e20">0m</div><div class="l" style="font-size:11px;color:#757575">누적 상승</div></div>
+          </div>
+          <div class="tbtns" style="display:flex;gap:8px">
+            <button class="tbtn pause" id="btnPause2">일시정지</button>
+            <button class="tbtn end" id="btnEnd2">종료</button>
+          </div>
+        </div>
+      </div>
+      <div id="recordList"></div>
+    </div>
+  </section>
+
+  <nav id="tabbar">
+    <button data-tab="map" class="active"><span class="ic">🗺</span>지도</button>
+    <button data-tab="discover"><span class="ic">✨</span>발견</button>
+    <button data-tab="record"><span class="ic">📍</span>기록</button>
+  </nav>
+</div>
+
+<!-- 저장 다이얼로그 -->
+<div id="saveModal" class="hidden">
+  <div id="saveBox">
+    <h3>등산 기록 저장</h3>
+    <div style="font-size:13px;color:#616161" id="saveSummary"></div>
+    <label>이름</label><input type="text" id="saveName">
+    <label>산 태그 (선택하면 자동 등정 처리)</label><select id="saveMountain"></select>
+    <label>메모</label><textarea id="saveMemo" placeholder="오늘 등산은 어땠나요?"></textarea>
+    <div class="row">
+      <button class="btn ghost" id="btnDiscard">버리기</button>
+      <button class="btn primary" id="btnSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+// ★★★ 카카오 앱키 입력 (https://developers.kakao.com → 내 애플리케이션 → JavaScript 키)
+// 이 값을 본인의 JavaScript 키로 교체하세요. 아래 로더가 SDK URL의 appkey를 자동으로 채웁니다.
+const KAKAO_APP_KEY = "여기에_카카오_앱키_입력";
+const MOUNTAINS = [{"name":"가리산","peak":null,"height":1050.9,"region":"강원특별자치도","lat":37.87139,"lng":127.95639,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"홍천·춘천에 걸친 산, 원시림과 계곡이 아름다운 백두대간 줄기"},{"name":"가리왕산","peak":null,"height":1561.9,"region":"강원특별자치도","lat":37.46139,"lng":128.56333,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을","겨울"],"desc":"평창올림픽 활강 경기장이 열린 정선·평창의 고산"},{"name":"가야산","peak":"상왕봉","height":1432.6,"region":"경남,경북","lat":35.82222,"lng":128.11806,"national_park":true,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["봄","가을"],"desc":"상왕봉·해인사 품은 명산, 철쭉과 단풍이 아름다운 가야산국립공원"},{"name":"가지산","peak":null,"height":1240.9,"region":"울산,경북,경남","lat":35.62111,"lng":129.00306,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"영남알프스의 주봉, 정상 일대 철쭉 군락으로 유명한 바위산"},{"name":"감악산","peak":null,"height":674.9,"region":"경기","lat":37.94333,"lng":126.97583,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"파주·양주·연천에 걸친 경기 북부의 바위산, 출렁다리 명소"},{"name":"강천산","peak":null,"height":583.7,"region":"전북특별자치도,전남","lat":35.40192,"lng":127.04838,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"군립공원 제1호, 구름다리와 단풍으로 유명한 호남의 명산"},{"name":"계룡산","peak":"천황봉","height":846.5,"region":"대전,충남","lat":36.34333,"lng":127.20611,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"천황봉 등 다섯 봉우리와 사찰이 어우러진 계룡산국립공원"},{"name":"계방산","peak":null,"height":1579.1,"region":"강원특별자치도","lat":37.72827,"lng":128.46548,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을","겨울"],"desc":"오대산 남쪽 백두대간의 고산, 운해와 주목 군락의 원시림"},{"name":"공작산","peak":null,"height":887.4,"region":"강원특별자치도","lat":37.71556,"lng":128.01,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"공작새 모양 암릉이 돋보이는 홍천의 명산"},{"name":"관악산","peak":"연주대","height":632.2,"region":"서울,경기","lat":37.44556,"lng":126.96361,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"서울 남쪽 대표 바위산, 연주대 전망과 서울대 입구가 유명"},{"name":"구병산","peak":null,"height":876.3,"region":"경북,충북","lat":36.46958,"lng":127.86175,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"아홉 폭 병풍바위 절경, '충북의 알프스'라 불리는 암릉 명산"},{"name":"금산","peak":null,"height":704.9,"region":"경남","lat":34.75611,"lng":127.97745,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"한려해상 바다 전망과 보리암이 어우러진 남해의 명산"},{"name":"금수산","peak":null,"height":1015.8,"region":"충북","lat":37.04486,"lng":128.21815,"national_park":true,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"단양팔경 배경의 명산, 단풍과 암릉이 아름다운 제천의 산"},{"name":"금오산","peak":null,"height":976.5,"region":"경북","lat":36.08806,"lng":128.30583,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"구미의 진산, 케이블카와 약사암이 있는 도립공원"},{"name":"금정산","peak":"고당봉","height":800.8,"region":"부산,경남","lat":35.28015,"lng":129.05062,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"부산의 진산, 금정산성과 고당봉 전망이 일품인 명산"},{"name":"깃대봉","peak":null,"height":360.7,"region":"전남","lat":34.6942,"lng":125.203,"coord_uncertain":true,"national_park":true,"top100":true,"difficulty":1,"difficulty_note":"추정치","season":["봄","가을"],"desc":"홍도 최고봉, 다도해해상국립공원의 바다 전망대"},{"name":"남산(경주)","peak":"금오봉","height":495.1,"region":"경북","lat":35.76806,"lng":129.22556,"coord_uncertain":true,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"신라 천년 고도의 노천박물관, 불상·탑이 가득한 역사의 산"},{"name":"내연산","peak":"향로봉","height":711.3,"region":"경북","lat":36.27868,"lng":129.28991,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"보경사와 12폭포 품은 포항의 명산, 최고봉은 향로봉"},{"name":"내장산","peak":"신선봉","height":763.5,"region":"전북특별자치도","lat":35.47972,"lng":126.88806,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"단풍 터널과 내장사가 어우러진 호남의 대표 단풍 명산"},{"name":"대둔산","peak":"마천대","height":878.9,"region":"충남,전북특별자치도","lat":36.12459,"lng":127.32048,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"금강구름다리와 삼선계단이 명물인 충청·호남 경계 명산"},{"name":"대암산","peak":null,"height":1312.6,"region":"강원특별자치도","lat":38.21111,"lng":128.135,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을"],"desc":"용늪 고층습원을 품은 북방의 산, 원시림이 살아있는 생태보고"},{"name":"대야산","peak":null,"height":931.0,"region":"경북,충북","lat":36.66926,"lng":127.92948,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"속리산국립공원 내 용추계곡과 바위능선이 아름다운 명산"},{"name":"덕숭산","peak":null,"height":495.2,"region":"충남","lat":36.67155,"lng":126.6239,"national_park":false,"top100":true,"difficulty":1,"difficulty_note":"추정치","season":["봄","가을"],"desc":"수덕사 품은 예산의 명산, 덕숭산은 수덕산의 다른 이름"},{"name":"덕유산","peak":"향적봉","height":1614.2,"region":"전북특별자치도,경남","lat":35.86056,"lng":127.74639,"national_park":true,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["겨울","가을"],"desc":"향적봉 눈꽃·상고대 명소, 무주리조트 품은 덕유산국립공원"},{"name":"덕항산","peak":null,"height":1072.9,"region":"강원특별자치도","lat":37.33083,"lng":129.00972,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"삼척·태백 경계의 석회암 고산, 덕항산성 터가 남은 산"},{"coord_uncertain":true,"desc":"월악산국립공원에 속한 단양의 암릉 바위산","difficulty":3,"difficulty_note":"추정치","height":965.3,"lat":36.93,"lng":128.32,"name":"도락산","national_park":true,"peak":null,"region":"충북","season":["봄","가을"],"top100":true},{"desc":"북한산국립공원의 암릉 산, 자운봉에서 서울 조망","difficulty":2,"difficulty_note":"추정치","height":740.2,"lat":37.69854,"lng":127.01497,"name":"도봉산","national_park":true,"peak":"자운봉","region":"서울,경기","season":["봄","가을"],"top100":true},{"desc":"다도해해상국립공원의 해남 명산, 억새와 동백 명소","difficulty":2,"difficulty_note":"추정치","height":700,"lat":34.47033,"lng":126.63599,"name":"두륜산","national_park":true,"peak":"가련봉","region":"전남","season":["봄","가을"],"top100":true},{"desc":"동해·삼척의 깊은 산, 겨울 눈꽃 산행으로 유명","difficulty":4,"difficulty_note":"추정치","height":1357,"lat":37.26,"lng":129.1,"name":"두타산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을","겨울"],"top100":true},{"desc":"강화도 최고봉, 참성단과 서해 낙조가 유명한 산","difficulty":1,"difficulty_note":"추정치","height":472.1,"lat":37.6116,"lng":126.43483,"name":"마니산","national_park":false,"peak":null,"region":"인천","season":["봄","가을"],"top100":true},{"desc":"암마이·숫마이 두 봉우리, 봄 벚꽃과 타포니 지형","difficulty":2,"difficulty_note":"추정치","height":687.4,"lat":35.76222,"lng":127.40472,"name":"마이산","national_park":false,"peak":"숫마이산","region":"전북특별자치도","season":["봄"],"top100":true},{"desc":"포천·철원의 억새 명산, 가을 억새축제로 유명","difficulty":3,"difficulty_note":"추정치","height":922,"lat":38.10694,"lng":127.33778,"name":"명성산","national_park":false,"peak":null,"region":"강원특별자치도,경기","season":["가을"],"top100":true},{"desc":"가평 최고봉, 익근리 계곡과 단풍이 아름다운 산","difficulty":3,"difficulty_note":"추정치","height":1252.3,"lat":37.93278,"lng":127.43083,"name":"명지산","national_park":false,"peak":null,"region":"경기","season":["가을","겨울"],"top100":true},{"desc":"김제·전주·완주의 진산, 금산사와 진달래로 유명","difficulty":2,"difficulty_note":"추정치","height":795.2,"lat":35.72917,"lng":127.08528,"name":"모악산","national_park":false,"peak":null,"region":"전북특별자치도","season":["봄"],"top100":true},{"desc":"광주 진산 국립공원, 가을 억새와 주상절리 명산","difficulty":3,"difficulty_note":"추정치","height":1186.8,"lat":35.1392,"lng":126.9925,"name":"무등산","national_park":true,"peak":"천왕봉","region":"광주,전남","season":["가을"],"top100":true},{"desc":"창원 도심 속 명산, 봄 진달래 군락이 장관","difficulty":2,"difficulty_note":"추정치","height":761.4,"lat":35.21011,"lng":128.53551,"name":"무학산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"coord_uncertain":true,"desc":"통영 미륵도의 케이블카 산, 한려수도 조망 명소","difficulty":1,"difficulty_note":"추정치","height":458.4,"lat":34.806,"lng":128.389,"name":"미륵산","national_park":true,"peak":null,"region":"경남","season":["봄","가을"],"top100":true},{"coord_uncertain":true,"desc":"삼도 경계의 백두대간 명산, 겨울 눈꽃 능선이 장관","difficulty":4,"difficulty_note":"추정치","height":1241.7,"lat":36.04,"lng":127.85,"name":"민주지산","national_park":false,"peak":null,"region":"충북,전북특별자치도,경북","season":["겨울"],"top100":true},{"desc":"장성·고창 경계 산, 방장굴과 가을 단풍 명소","difficulty":2,"difficulty_note":"추정치","height":733.6,"lat":35.44778,"lng":126.76,"name":"방장산","national_park":false,"peak":null,"region":"전남,전북특별자치도","season":["가을"],"top100":true},{"desc":"인제·홍천의 오지 산, 주걱봉 단풍과 원시림","difficulty":4,"difficulty_note":"추정치","height":1445.7,"lat":37.89472,"lng":128.35556,"name":"방태산","national_park":false,"peak":"주걱봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"평창·횡성·영월 경계 1350m 고산, 원시림 산행","difficulty":4,"difficulty_note":"추정치","height":1350.1,"lat":37.39667,"lng":128.29333,"name":"백덕산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"내장산국립공원 남부, 백양사 단풍과 상왕봉 암릉","difficulty":2,"difficulty_note":"추정치","height":741.2,"lat":35.42,"lng":126.89,"name":"백암산","national_park":true,"peak":"상왕봉","region":"전북특별자치도,전남","season":["봄","가을"],"top100":true},{"desc":"광양의 명산, 백운계곡과 4대 계곡의 단풍 산행","difficulty":4,"difficulty_note":"추정치","height":1222.2,"lat":35.10639,"lng":127.62167,"name":"백운산(광양)","national_park":false,"peak":null,"region":"전남","season":["가을"],"top100":true},{"desc":"정선·평창 경계 산, 동강과 어우러진 조망 명소","difficulty":3,"difficulty_note":"추정치","height":883.5,"lat":37.29917,"lng":128.58,"name":"백운산(정선)","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"포천·화천 경계, 백운계곡과 기암괴석의 산","difficulty":3,"difficulty_note":"추정치","height":903,"lat":38.07472,"lng":127.44417,"name":"백운산(포천)","national_park":false,"peak":null,"region":"경기,강원특별자치도","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"변산반도국립공원의 해안 산, 채석강·적벽강 조망","difficulty":1,"difficulty_note":"추정치","height":459,"lat":35.68083,"lng":126.53139,"name":"변산","national_park":true,"peak":"쌍선봉","region":"전북특별자치도","season":["여름"],"top100":true},{"desc":"수도권 대표 국립공원, 백운대·인수봉 암릉 산행","difficulty":2,"difficulty_note":"추정치","height":835.6,"lat":37.6608,"lng":126.9933,"name":"북한산","national_park":true,"peak":"백운대","region":"서울,경기","season":["가을"],"top100":true},{"desc":"대구 달성의 명산, 봄 참꽃과 대견사 암괴류","difficulty":3,"difficulty_note":"추정치","height":1083.4,"lat":35.71667,"lng":128.52444,"name":"비슬산","national_park":false,"peak":"천왕봉","region":"대구,경북","season":["봄"],"top100":true},{"desc":"춘천 의암호 옆 암릉 산, 용화봉·등선봉 삼봉","difficulty":2,"difficulty_note":"추정치","height":655.8,"lat":37.83861,"lng":127.66389,"name":"삼악산","national_park":false,"peak":"용화봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"금산·옥천 경계 산, 서대폭포와 가을 단풍 명소","difficulty":3,"difficulty_note":"추정치","height":904.1,"lat":36.22066,"lng":127.53837,"name":"서대산","national_park":false,"peak":null,"region":"충남,충북","season":["가을"],"top100":true},{"desc":"호남의 내금강, 동백꽃·단풍·도솔계곡이 아름다운 도립공원 명산","difficulty":1,"difficulty_note":"추정치","height":334.7,"lat":35.50806,"lng":126.57111,"name":"선운산","national_park":false,"peak":null,"region":"전북특별자치도","season":["봄","가을"],"top100":true},{"desc":"한반도 3대 명산, 대청봉·공룡능선·단풍으로 유명한 국립공원","difficulty":5,"difficulty_note":"추정치","height":1708.1,"lat":38.11944,"lng":128.46556,"name":"설악산","national_park":true,"peak":"대청봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"울릉도 최고봉, 원시림과 독도 조망의 화산섬 명산","difficulty":3,"difficulty_note":"추정치","height":986.5,"lat":37.50333,"lng":130.86611,"name":"성인봉","national_park":false,"peak":null,"region":"경북","season":["여름","가을"],"top100":true},{"desc":"봄 철쭉·겨울 눈꽃이 아름다운 백두대간의 국립공원","difficulty":4,"difficulty_note":"추정치","height":1439.7,"lat":36.96,"lng":128.48472,"name":"소백산","national_park":true,"peak":"비로봉","region":"경북,충북","season":["봄","가을"],"top100":true},{"desc":"경기의 소금강, 단풍과 자재암으로 유명한 수도권 명산","difficulty":2,"difficulty_note":"추정치","height":587.5,"lat":37.94194,"lng":127.08889,"name":"소요산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"법주사와 문장대·천왕봉이 어우러진 불교 명산 국립공원","difficulty":3,"difficulty_note":"추정치","height":1058.4,"lat":36.53333,"lng":127.9,"name":"속리산","national_park":true,"peak":"천왕봉","region":"경북,충북","season":["가을"],"top100":true},{"desc":"영남알프스의 억새 평원과 공룡능선이 장관인 명산","difficulty":3,"difficulty_note":"추정치","height":1159.3,"lat":35.54,"lng":129.056,"name":"신불산","national_park":false,"peak":null,"region":"울산","season":["가을"],"top100":true},{"desc":"연꽃 형상의 봉우리들과 옥천사가 있는 고성 도립공원","difficulty":2,"difficulty_note":"추정치","height":524,"lat":35.0708,"lng":128.265,"name":"연화산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"desc":"월정사·상원사와 겨울 눈꽃으로 유명한 불교 국립공원","difficulty":4,"difficulty_note":"추정치","height":1565.4,"lat":37.79806,"lng":128.54306,"name":"오대산","national_park":true,"peak":"비로봉","region":"강원특별자치도","season":["겨울"],"top100":true},{"desc":"다섯 봉우리가 솟아 춘천호를 굽어보는 강원 명산","difficulty":2,"difficulty_note":"추정치","height":777.9,"lat":38.00083,"lng":127.80611,"name":"오봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"경기의 금강산, 가섭봉 암릉과 천년 은행나무의 명산","difficulty":3,"difficulty_note":"추정치","height":1157.1,"lat":37.5622,"lng":127.552,"name":"용문산","national_park":false,"peak":"가섭봉","region":"경기","season":["가을"],"top100":true},{"desc":"화천·춘천 경계의 한적한 산행 명소","difficulty":2,"difficulty_note":"추정치","height":877.8,"lat":38.03722,"lng":127.75306,"name":"용화산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"영남알프스 중심, 운문사와 억새가 아름다운 명산","difficulty":3,"difficulty_note":"추정치","height":1195.1,"lat":35.67639,"lng":129.03417,"name":"운문산","national_park":false,"peak":null,"region":"경북,경남","season":["봄","가을"],"top100":true},{"desc":"경기 5악 중 으뜸, 기암괴봉의 소금강","difficulty":3,"difficulty_note":"추정치","height":934.7,"lat":37.87806,"lng":127.325,"name":"운악산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"호남 노령산맥 최고봉, 오색 단풍의 명산","difficulty":3,"difficulty_note":"추정치","height":1125.8,"lat":35.91083,"lng":127.35722,"name":"운장산","national_park":false,"peak":"운장대","region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"충주호를 품은 영봉의 국립공원 명산","difficulty":3,"difficulty_note":"추정치","height":1095.3,"lat":36.8858,"lng":128.106,"name":"월악산","national_park":true,"peak":"영봉","region":"충북","season":["가을"],"top100":true},{"desc":"달 뜨는 산, 천황봉 기암절벽의 호남 국립공원","difficulty":2,"difficulty_note":"추정치","height":810.7,"lat":34.76778,"lng":126.70444,"name":"월출산","national_park":true,"peak":"천황봉","region":"전남","season":["봄","가을"],"top100":true},{"desc":"국내 최초 자연휴양림이 있는 경기 가평·양평의 명산","difficulty":2,"difficulty_note":"추정치","height":864,"lat":37.57639,"lng":127.4875,"name":"유명산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"삼척·울진 경계 백두대간의 한적한 명산","difficulty":3,"difficulty_note":"추정치","height":999.7,"lat":37.07639,"lng":129.23083,"name":"응봉산","national_park":false,"peak":null,"region":"강원특별자치도,경북","season":["가을"],"top100":true},{"desc":"장수군의 진산, 백두대간 팔대종산의 명산","difficulty":3,"difficulty_note":"추정치","height":1237.4,"lat":35.63,"lng":127.59583,"name":"장안산","national_park":false,"peak":null,"region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"천황산과 어우러진 영남알프스의 억새 명산","difficulty":3,"difficulty_note":"추정치","height":1119.1,"lat":35.54667,"lng":128.98056,"name":"재약산","national_park":false,"peak":"수미봉","region":"경남,울산","season":["가을"],"top100":true},{"desc":"덕유산국립공원의 붉은 바위 지대와 안국사가 있는 명산","difficulty":3,"difficulty_note":"추정치","height":1030.6,"lat":35.94778,"lng":127.69111,"name":"적상산","national_park":true,"peak":null,"region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"남설악의 곰배령·단풍으로 유명한 생태 명산","difficulty":4,"difficulty_note":"추정치","height":1426,"lat":38.04917,"lng":128.4275,"name":"점봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"송광사와 봄 벚꽃·가을 단풍이 아름다운 순천 도립공원","difficulty":2,"difficulty_note":"추정치","height":887.3,"lat":35.0025,"lng":127.31361,"name":"조계산","national_park":false,"peak":null,"region":"전남","season":["봄","가을"],"top100":true},{"desc":"기암절벽과 대전사 계곡이 어우러진 청송 국립공원","difficulty":2,"difficulty_note":"추정치","height":722.1,"lat":36.38922,"lng":127.16259,"name":"주왕산","national_park":true,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경새재 옛길을 품은 명산으로 가을 단풍과 조령관문이 장관인 산","difficulty":3,"difficulty_note":"추정치","height":1108.4,"lat":36.7885,"lng":128.1013,"name":"주흘산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"천왕봉을 정점으로 한반도 남부의 거대한 산군. 종주 산행의 성지","difficulty":5,"difficulty_note":"추정치","height":1915.4,"lat":35.33778,"lng":127.73056,"name":"지리산","national_park":true,"peak":"천왕봉","region":"전북특별자치도,전남,경남","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"사량도 상도에 솟은 섬 산. 다도해 조망이 뛰어난 한려해상의 보석","difficulty":1,"difficulty_note":"추정치","height":399.3,"lat":34.8182,"lng":128.2329,"name":"지리산(사량도)","national_park":true,"peak":null,"region":"경남","season":["봄","가을"],"top100":true},{"desc":"기암괴석 능선과 억새 평전이 장관인 남도의 명산, 호남 5대 명산","difficulty":2,"difficulty_note":"추정치","height":724.3,"lat":34.53222,"lng":126.91583,"name":"천관산","national_park":false,"peak":"연대봉","region":"전남","season":["가을"],"top100":true},{"desc":"남양주 근교의 대표 산행지. 수도권 당일 산행으로 인기 높은 산","difficulty":2,"difficulty_note":"추정치","height":810.3,"lat":37.68056,"lng":127.27278,"name":"천마산","national_park":false,"peak":null,"region":"경기","season":["봄","가을"],"top100":true},{"desc":"원효봉 정상의 화엄늪과 진달래·억새가 아름다운 영남알프스의 명산","difficulty":3,"difficulty_note":"추정치","height":920.2,"lat":35.42028,"lng":129.11222,"name":"천성산","national_park":false,"peak":"원효봉","region":"경남","season":["봄","가을"],"top100":true},{"desc":"영동과 금산 경계의 완만한 산. 가족 산행에 좋은 충청의 명산","difficulty":2,"difficulty_note":"추정치","height":715.2,"lat":36.15889,"lng":127.6,"name":"천태산","national_park":false,"peak":null,"region":"충북,충남","season":["봄","가을"],"top100":true},{"desc":"장인봉 일대 기암절벽과 청량사·김생굴이 어우러진 경북의 명산","difficulty":2,"difficulty_note":"추정치","height":869.7,"lat":36.79139,"lng":128.92694,"name":"청량산","national_park":false,"peak":"장인봉","region":"경북","season":["봄","가을"],"top100":true},{"desc":"담양과 순창 경계의 가을 단풍 명소. 호남의 아담한 명산","difficulty":2,"difficulty_note":"추정치","height":731.2,"lat":35.39917,"lng":126.97556,"name":"추월산","national_park":false,"peak":null,"region":"전남,전북특별자치도","season":["가을"],"top100":true},{"desc":"남양주·가평의 울창한 산림욕장. 수도권 근교 산행의 명소","difficulty":2,"difficulty_note":"추정치","height":887.1,"lat":37.75278,"lng":127.33306,"name":"축령산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"비로봉 정상의 조망과 구룡사 계곡이 아름다운 원주의 진산","difficulty":4,"difficulty_note":"추정치","height":1282,"lat":37.37167,"lng":128.05056,"name":"치악산","national_park":true,"peak":"비로봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"청양의 알프스라 불리는 충남의 명산. 칠갑산 장승문화제의 고장","difficulty":2,"difficulty_note":"추정치","height":559.7,"lat":36.41333,"lng":126.88417,"name":"칠갑산","national_park":false,"peak":null,"region":"충남","season":["봄","가을"],"top100":true},{"desc":"장군봉·문수봉의 주목 군락과 겨울 눈꽃이 장관인 민족의 영산","difficulty":4,"difficulty_note":"추정치","height":1566.7,"lat":37.09583,"lng":128.91528,"name":"태백산","national_park":true,"peak":"장군봉","region":"강원특별자치도,경북","season":["겨울"],"top100":true},{"desc":"영월과 단양 경계의 고원 산. 단풍과 억새가 아름다운 강원 남부의 명산","difficulty":3,"difficulty_note":"추정치","height":1027.5,"lat":37.11759,"lng":128.48538,"name":"태화산","national_park":false,"peak":null,"region":"강원특별자치도,충북","season":["가을"],"top100":true},{"desc":"비로봉·동봉·서봉의 세 봉우리와 갓바위가 유명한 대구의 진산","difficulty":3,"difficulty_note":"추정치","height":1192.3,"lat":36.01694,"lng":128.695,"name":"팔공산","national_park":true,"peak":"비로봉","region":"대구,경북","season":["가을"],"top100":true},{"desc":"홍천강을 굽어보는 여덟 봉우리. 가벼운 당일 산행에 좋은 산","difficulty":1,"difficulty_note":"추정치","height":328.2,"lat":37.69596,"lng":127.69669,"name":"팔봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["봄","가을"],"top100":true},{"desc":"여덟 봉우리의 바위산. 다도해 조망이 뛰어난 고흥의 명산","difficulty":2,"difficulty_note":"추정치","height":606.9,"lat":34.61606,"lng":127.43573,"name":"팔영산","national_park":true,"peak":null,"region":"전남","season":["가을"],"top100":true},{"desc":"백록담을 품은 남한 최고봉. 사계절 절경의 제주 화산","difficulty":5,"difficulty_note":"추정치","height":1947.3,"lat":33.36167,"lng":126.52917,"name":"한라산","national_park":true,"peak":"백록담","region":"제주특별자치도","season":["겨울"],"top100":true},{"desc":"경기 북부의 최고봉. 중봉 일대 원시림이 잘 보존된 깊은 산","difficulty":4,"difficulty_note":"추정치","height":1468.3,"lat":37.995,"lng":127.50306,"name":"화악산","national_park":false,"peak":null,"region":"경기,강원특별자치도","season":["가을"],"top100":true},{"desc":"가을 억새 평원과 화왕산성이 어우러진 창녕의 명산","difficulty":2,"difficulty_note":"추정치","height":757.7,"lat":35.54778,"lng":128.53278,"name":"화왕산","national_park":false,"peak":null,"region":"경남","season":["가을"],"top100":true},{"desc":"봄 철쭉 군락과 억새 평원이 장관인 합천·산청의 명산","difficulty":3,"difficulty_note":"추정치","height":1113.1,"lat":35.51877,"lng":127.95951,"name":"황매산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"coord_uncertain":true,"desc":"황석산성을 품은 험준한 산. 임진왜란 격전지였던 함양의 명산","difficulty":3,"difficulty_note":"추정치","height":1192.5,"lat":35.65083,"lng":127.75139,"name":"황석산","national_park":false,"peak":null,"region":"경남","season":["가을"],"top100":true},{"desc":"직지사와 직지사 계곡을 품은 김천의 명산. 가을 단풍이 아름다움","difficulty":3,"difficulty_note":"추정치","height":1111.4,"lat":36.11805,"lng":127.9668,"name":"황악산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경 동로면의 깊은 산. 황장목 산지였던 울창한 원시림의 산","difficulty":3,"difficulty_note":"추정치","height":1078.9,"lat":36.81274,"lng":128.27818,"name":"황장산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경과 괴산 경계의 바위산. 은폭동 계곡과 기암이 아름다운 산","difficulty":3,"difficulty_note":"추정치","height":996.4,"lat":36.716,"lng":128.005,"name":"희양산","national_park":false,"peak":null,"region":"경북,충북","season":["가을"],"top100":true}];
+/* ===== 유틸 ===== */
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.remove("hidden");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.add("hidden"),2400);}
+// 하버사인 거리 (m)
+function hav(a,b,c,d){const R=6371000,t=Math.PI/180;
+  const s1=Math.sin((c-a)/2*t),s2=Math.sin((d-b)/2*t);
+  return 2*R*Math.asin(Math.sqrt(s1*s1+Math.cos(a*t)*Math.cos(c*t)*s2*s2));}
+function fmtDist(m){return m>=1000?(m/1000).toFixed(1)+"km":Math.round(m)+"m";}
+function fmtDur(s){s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  if(h>0)return h+"시간 "+m+"분";if(m>0)return m+"분 "+(s%60)+"초";return s+"초";}
+function fmtClock(s){s=Math.floor(s);const h=String(Math.floor(s/3600)).padStart(2,"0"),m=String(Math.floor(s%3600/60)).padStart(2,"0"),ss=String(s%60).padStart(2,"0");return h+":"+m+":"+ss;}
+function fmtDate(ts){const d=new Date(ts);const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function curSeason(){const m=new Date().getMonth()+1; // 0=1월
+  if(m>=3&&m<=5)return"봄";if(m>=6&&m<=8)return"여름";if(m>=9&&m<=11)return"가을";return"겨울";}
+
+/* ===== 로컬 저장소 ===== */
+const LS_SUMMITS="mtapp_summits", LS_RECORDS="mtapp_records";
+function loadSummits(){try{return JSON.parse(localStorage.getItem(LS_SUMMITS))||[]}catch(e){return[]}}
+function saveSummits(){localStorage.setItem(LS_SUMMITS,JSON.stringify(summits));}
+function loadRecords(){try{return JSON.parse(localStorage.getItem(LS_RECORDS))||[]}catch(e){return[]}}
+function saveRecords(){localStorage.setItem(LS_RECORDS,JSON.stringify(records));}
+let summits=loadSummits();   // 산 이름 배열
+let records=loadRecords();   // 기록 배열
+const isSummited=n=>summits.includes(n);
+function toggleSummit(n){
+  if(isSummited(n)){summits=summits.filter(x=>x!==n);toast(n+" 등정 체크 해제");}
+  else{summits.push(n);toast("🎉 "+n+" 등정 완료!");}
+  saveSummits();refreshSummitUI();
+}
+function refreshSummitUI(){buildMarkers();renderProgress();if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
+
+/* ===== 지역(시도) 목록 ===== */
+const SIDO_ORDER=["서울","경기","인천","강원특별자치도","충북","충남","대전","세종","전북특별자치도","전남","광주","경북","경남","대구","울산","부산","제주특별자치도"];
+const SIDO_MAP={"서울":"서울특별시","경기":"경기도","인천":"인천광역시","강원특별자치도":"강원특별자치도","충북":"충청북도","충남":"충청남도","대전":"대전광역시","세종":"세종특별자치시","전북특별자치도":"전북특별자치도","전남":"전라남도","광주":"광주광역시","경북":"경상북도","경남":"경상남도","대구":"대구광역시","울산":"울산광역시","부산":"부산광역시","제주특별자치도":"제주특별자치도"};
+function mountainSidos(m){return m.region.split(",").map(r=>r.trim());}
+function allSidos(){const s=new Set();MOUNTAINS.forEach(m=>mountainSidos(m).forEach(x=>s.add(x)));
+  return SIDO_ORDER.filter(x=>s.has(x)).concat([...s].filter(x=>!SIDO_ORDER.includes(x)));}
+
+/* ===== 지도 (카카오맵 SDK) ===== */
+let map=null, mapReady=false, clusterer=null;
+let markers=[]; // {m, marker}
+// SVG 산 뱃지 → 카카오 MarkerImage
+function badgeImage(m){
+  const done=isSummited(m.name);
+  const lvl=mapReady?map.getLevel():13;
+  const raw=lvl<=10?Math.round(m.height)+"m":m.name; // 줌인(레벨↓)일수록 표고, 줌아웃이면 산 이름
+  const label=String(raw).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const bg=done?"#ffa000":(m.national_park?"#1b5e20":"#43a047");
+  const bd=done?"#e65100":(m.national_park?"#0d3b12":"#ffffff");
+  let w=20;
+  for(const ch of String(raw)){w+=/[가-힣]/.test(ch)?13:7;}
+  if(done)w+=16;
+  const h=30;
+  let inner='<rect x="1" y="1" width="'+(w-2)+'" height="'+(h-2)+'" rx="14" fill="'+bg+'" stroke="'+bd+'" stroke-width="2"/>'
+    +'<text x="'+(w/2)+'" y="19.5" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff" font-family="sans-serif">'+label+'</text>';
+  if(done){
+    inner+='<circle cx="'+(w-7)+'" cy="7" r="8" fill="#ffa000" stroke="#ffffff" stroke-width="2"/>'
+      +'<text x="'+(w-7)+'" y="10.5" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff" font-family="sans-serif">✓</text>';
+  }
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+inner+'</svg>';
+  return new kakao.maps.MarkerImage(
+    "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg),
+    new kakao.maps.Size(w,h),
+    {offset:new kakao.maps.Point(w/2,h/2)}
+  );
+}
+const CLUSTER_STYLES=[
+  {width:"46px",height:"46px",background:"rgba(67,160,71,.92)",borderRadius:"50%",color:"#fff",textAlign:"center",lineHeight:"46px",fontSize:"14px",fontWeight:"bold",border:"2px solid #fff",boxShadow:"0 2px 8px rgba(0,0,0,.3)",boxSizing:"border-box"},
+  {width:"56px",height:"56px",background:"rgba(46,125,50,.92)",borderRadius:"50%",color:"#fff",textAlign:"center",lineHeight:"56px",fontSize:"15px",fontWeight:"bold",border:"2px solid #fff",boxShadow:"0 2px 8px rgba(0,0,0,.3)",boxSizing:"border-box"},
+  {width:"68px",height:"68px",background:"rgba(27,94,32,.94)",borderRadius:"50%",color:"#fff",textAlign:"center",lineHeight:"68px",fontSize:"16px",fontWeight:"bold",border:"2px solid #fff",boxShadow:"0 2px 8px rgba(0,0,0,.3)",boxSizing:"border-box"}
+];
+function buildMarkers(){
+  if(!mapReady)return;
+  clusterer.clear();markers=[];
+  filtered.forEach(m=>{
+    const mk=new kakao.maps.Marker({position:new kakao.maps.LatLng(m.lat,m.lng),image:badgeImage(m),title:m.name,clickable:true});
+    kakao.maps.event.addListener(mk,"click",()=>openDetail(m));
+    markers.push({m:m,marker:mk});
+  });
+  clusterer.addMarkers(markers.map(o=>o.marker));
+}
+function initMap(){
+  map=new kakao.maps.Map($("#map"),{center:new kakao.maps.LatLng(36.35,127.9),level:13});
+  map.addControl(new kakao.maps.ZoomControl(),kakao.maps.ControlPosition.RIGHT);
+  map.addControl(new kakao.maps.MapTypeControl(),kakao.maps.ControlPosition.TOPRIGHT);
+  clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:8,calculator:[10,30,50],styles:CLUSTER_STYLES});
+  kakao.maps.event.addListener(map,"zoom_changed",()=>{
+    markers.forEach(o=>o.marker.setImage(badgeImage(o.m)));
+  });
+  mapReady=true;
+  $("#sdkBanner").classList.add("hidden");
+  buildMarkers();
+}
+// SDK 로드 실패 또는 앱키 미입력 시 지도 탭에 안내 배너만 표시 (다른 탭은 정상 동작)
+function showSdkError(){$("#sdkBanner").classList.remove("hidden");}
+(function loadKakaoSdk(){
+  if(!KAKAO_APP_KEY||KAKAO_APP_KEY.indexOf("여기에")==0){showSdkError();return;}
+  const s=document.getElementById("kakao-sdk-loader");
+  s.src="https://dapi.kakao.com/v2/maps/sdk.js?appkey="+KAKAO_APP_KEY+"&libraries=clusterer&autoload=false";
+  s.onload=()=>{try{kakao.maps.load(initMap);}catch(e){showSdkError();}};
+  s.onerror=()=>{showSdkError();};
+})();
+
+/* 내 위치 */
+let meOverlay=null;
+$("#locateBtn").addEventListener("click",()=>{
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  if(!navigator.geolocation){toast("이 기기에서 위치 기능을 사용할 수 없어요.");return;}
+  navigator.geolocation.getCurrentPosition(p=>{
+    const pos=new kakao.maps.LatLng(p.coords.latitude,p.coords.longitude);
+    if(meOverlay)meOverlay.setMap(null);
+    meOverlay=new kakao.maps.CustomOverlay({position:pos,content:'<div class="me-dot"></div>',xAnchor:0.5,yAnchor:0.5});
+    meOverlay.setMap(map);
+    map.panTo(pos);
+  },()=>{toast("위치를 가져오지 못했어요. HTTPS(배포) 환경에서 위치 권한을 허용해 주세요.");},{enableHighAccuracy:true,timeout:8000});
+});
+
+/* ===== 필터 + 검색 ===== */
+const filters={cat:"all",region:"",season:""};
+let filtered=MOUNTAINS.slice();
+function applyFilters(){
+  filtered=MOUNTAINS.filter(m=>{
+    if(filters.cat==="top100"&&!m.top100)return false;
+    if(filters.cat==="np"&&!m.national_park)return false;
+    if(filters.cat==="easy"&&m.difficulty>2)return false;
+    if(filters.region&&!mountainSidos(m).includes(filters.region))return false;
+    if(filters.season&&!m.season.includes(filters.season))return false;
+    return true;
+  });
+  buildMarkers();renderSheetList();updateSummary();
+}
+// 카테고리 칩
+$$("#chips .chip[data-cat]").forEach(ch=>ch.addEventListener("click",()=>{
+  $$("#chips .chip[data-cat]").forEach(c=>c.classList.remove("active"));
+  ch.classList.add("active");filters.cat=ch.dataset.cat;applyFilters();
+}));
+// 지역 패널
+function buildRegionPanel(){
+  const box=$("#regionOpts");box.innerHTML="";
+  const mkBtn=(label,val,sel)=>{const b=document.createElement("button");b.className="opt"+(sel?" sel":"");
+    b.textContent=label;b.addEventListener("click",()=>{filters.region=val;
+      $("#chipRegion").textContent=val?("지역: "+(SIDO_MAP[val]||val))+" ▾":"지역 ▾";
+      $("#chipRegion").classList.toggle("picked",!!val);
+      $("#regionPanel").classList.add("hidden");buildRegionPanel();applyFilters();});box.appendChild(b);};
+  mkBtn("전체", "", !filters.region);
+  allSidos().forEach(s=>mkBtn(SIDO_MAP[s]||s, s, filters.region===s));
+}
+$("#chipRegion").addEventListener("click",e=>{e.stopPropagation();buildRegionPanel();
+  $("#seasonPanel").classList.add("hidden");$("#regionPanel").classList.toggle("hidden");});
+// 계절 패널
+["봄","여름","가을","겨울"].forEach(s=>{
+  const b=document.createElement("button");b.className="opt";b.textContent=s;b.dataset.season=s;
+  b.addEventListener("click",()=>{filters.season=(filters.season===s)?"":s;
+    $$("#seasonOpts .opt").forEach(o=>o.classList.toggle("sel",o.dataset.season===filters.season));
+    $("#chipSeason").textContent=filters.season?("계절: "+filters.season)+" ▾":"계절 ▾";
+    $("#chipSeason").classList.toggle("picked",!!filters.season);
+    $("#seasonPanel").classList.add("hidden");applyFilters();});
+  $("#seasonOpts").appendChild(b);
+});
+$("#chipSeason").addEventListener("click",e=>{e.stopPropagation();
+  $("#regionPanel").classList.add("hidden");$("#seasonPanel").classList.toggle("hidden");});
+document.addEventListener("click",()=>{$("#regionPanel").classList.add("hidden");$("#seasonPanel").classList.add("hidden");$("#searchDrop").classList.add("hidden");});
+// 검색
+$("#searchInput").addEventListener("input",e=>{
+  const q=e.target.value.trim();const drop=$("#searchDrop");
+  if(!q){drop.classList.add("hidden");return;}
+  const res=MOUNTAINS.filter(m=>m.name.includes(q)).slice(0,8);
+  if(!res.length){drop.innerHTML='<div class="sr-item"><span class="n">검색 결과 없음</span></div>';drop.classList.remove("hidden");return;}
+  drop.innerHTML=res.map(m=>'<div class="sr-item" data-nm="'+esc(m.name)+'"><span><span class="n">'+esc(m.name)+'</span><span class="r">'+esc(m.region)+'</span></span><span class="h">'+Math.round(m.height)+'m</span></div>').join("");
+  drop.classList.remove("hidden");
+  drop.querySelectorAll(".sr-item[data-nm]").forEach(el=>el.addEventListener("click",ev=>{
+    ev.stopPropagation();
+    const m=MOUNTAINS.find(x=>x.name===el.dataset.nm);
+    drop.classList.add("hidden");$("#searchInput").value="";
+    if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}
+    openDetail(m);
+  }));
+});
+
+/* ===== 바텀시트 ===== */
+const sheet=$("#sheet");let sheetMode="list", selMountain=null, selRecord=null;
+function setSheet(exp){sheet.classList.toggle("expanded",exp);sheet.classList.toggle("collapsed",!exp);
+  if(exp)setTimeout(()=>{if(mapReady)map.relayout();},220);}
+$("#sheetHandle").addEventListener("click",()=>{if(suppressSheetClick)return;setSheet(!sheet.classList.contains("expanded"));});
+$("#sheetSummary").addEventListener("click",()=>{if(suppressSheetClick)return;setSheet(!sheet.classList.contains("expanded"));});
+// 드래그로 펼치기/접기
+let suppressSheetClick=false;
+(function(){let y0=0,h0=0,drag=false;
+  const start=e=>{drag=true;y0=e.touches?e.touches[0].clientY:e.clientY;h0=sheet.offsetHeight;sheet.style.transition="none";};
+  const move=e=>{if(!drag)return;const y=e.touches?e.touches[0].clientY:e.clientY;
+    const nh=Math.min(window.innerHeight*.72,Math.max(64,h0+(y0-y)));
+    sheet.style.height=nh+"px";};
+  const end=e=>{if(!drag)return;drag=false;sheet.style.transition="";sheet.style.height="";
+    const y=e.changedTouches?e.changedTouches[0].clientY:e.clientY;
+    if(Math.abs(y0-y)>12){suppressSheetClick=true;setTimeout(()=>suppressSheetClick=false,80);}
+    setSheet(y0-y>60||(sheet.classList.contains("collapsed")&&y0-y>-30));};
+  ["#sheetHandle","#sheetSummary"].forEach(s=>{const el=$(s);
+    el.addEventListener("touchstart",start,{passive:true});el.addEventListener("touchmove",move,{passive:true});el.addEventListener("touchend",end);
+    el.addEventListener("mousedown",start);window.addEventListener("mousemove",move);window.addEventListener("mouseup",end);});
+})();
+function updateSummary(){
+  if(sheetMode==="detail"&&selMountain){$("#sheetSummary").innerHTML=esc(selMountain.name)+'<span class="sub">'+Math.round(selMountain.height)+"m · "+esc(selMountain.region)+"</span>";}
+  else if(sheetMode==="record"&&selRecord){$("#sheetSummary").innerHTML="📍 "+esc(selRecord.name)+'<span class="sub">'+fmtDate(selRecord.date)+"</span>";}
+  else{$("#sheetSummary").innerHTML="⛰ 산 "+filtered.length+"곳"+'<span class="sub">목록을 보려면 위로 스와이프</span>';}
+}
+function diffbar(d){let h="";for(let i=1;i<=5;i++)h+='<i class="'+(i<=d?"on":"")+'"></i>';return '<span class="diffbar">'+h+"</span>";}
+function cardHTML(m){
+  return '<div class="mcard" data-nm="'+esc(m.name)+'"><div class="t"><span class="nm">'+esc(m.name)+'</span><span class="hg">'+Math.round(m.height)+'m</span></div>'
+    +'<div class="rg">'+esc(m.region)+(m.peak?" · "+esc(m.peak):"")+' · 난이도'+diffbar(m.difficulty)+'</div>'
+    +'<div class="ds">'+esc(m.desc)+'</div>'
+    +'<div class="badges">'
+    +(m.top100?'<span class="bdg top100">100대명산</span>':"")
+    +(m.national_park?'<span class="bdg np">국립공원</span>':"")
+    +(isSummited(m.name)?'<span class="bdg done">✓ 등정 완료</span>':"")
+    +m.season.map(s=>'<span class="bdg season">'+s+'</span>').join("")
+    +"</div></div>";
+}
+function renderSheetList(){
+  sheetMode="list";selMountain=null;selRecord=null;updateSummary();
+  const body=$("#sheetBody");
+  body.innerHTML=filtered.map(cardHTML).join("")||'<div class="empty">조건에 맞는 산이 없어요.</div>';
+  body.querySelectorAll(".mcard").forEach(c=>c.addEventListener("click",()=>{
+    const m=MOUNTAINS.find(x=>x.name===c.dataset.nm);openDetail(m);
+  }));
+  setSheet(false);
+}
+function openDetail(m){selMountain=m;selRecord=null;renderDetail(m,true);}
+function renderDetail(m,expand){
+  sheetMode="detail";updateSummary();
+  const done=isSummited(m.name);
+  $("#sheetBody").innerHTML=
+    '<button id="detailBack">‹ 목록으로</button>'
+    +'<div class="d-title">'+esc(m.name)+'</div>'
+    +'<div class="d-meta">표고 '+Math.round(m.height)+'m · '+esc(m.region)+(m.peak?'<br>주봉: '+esc(m.peak):"")+'<br>난이도'+diffbar(m.difficulty)+'<span style="font-size:12px;color:#9e9e9e"> (추정치)</span></div>'
+    +'<div class="badges">'
+    +(m.top100?'<span class="bdg top100">100대명산</span>':"")
+    +(m.national_park?'<span class="bdg np">국립공원</span>':"")
+    +(done?'<span class="bdg done">✓ 등정 완료</span>':"")
+    +m.season.map(s=>'<span class="bdg season">'+s+' 추천</span>').join("")
+    +"</div>"
+    +'<div class="d-desc">'+esc(m.desc)+"</div>"
+    +'<div class="d-btns">'
+    +'<button class="btn '+(done?"done-on":"ghost")+'" id="btnSummit">'+(done?"✓ 등정 완료 (해제)":"등정 완료 체크")+'</button>'
+    +'<button class="btn primary" id="btnTrackHere">이 산으로 GPS 기록 시작</button>'
+    +"</div>";
+  $("#detailBack").addEventListener("click",renderSheetList);
+  $("#btnSummit").addEventListener("click",()=>toggleSummit(m.name));
+  $("#btnTrackHere").addEventListener("click",()=>{startTracking(m.name);});
+  if(expand)setSheet(true);
+}
+
+/* ===== 탭 전환 ===== */
+$$("#tabbar button").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+function switchTab(t){
+  $$("#tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));
+  $$(".tabpage").forEach(p=>p.classList.remove("active"));
+  $("#tab-"+t).classList.add("active");
+  if(t==="map"){setTimeout(()=>{if(mapReady)map.relayout();},60);}
+  if(t==="discover"){renderProgress();renderSeasonCards();}
+  if(t==="record"){renderRecords();}
+}
+
+/* ===== 발견(추천) 탭 ===== */
+function renderProgress(){
+  const n=summits.filter(nm=>MOUNTAINS.some(m=>m.name===nm&&m.top100)).length;
+  $("#progText").textContent="100대명산 중 "+n+"곳 등정 ("+Math.round(n)+"%)";
+  $("#progBar").style.width=Math.min(100,n)+"%";
+}
+(function initDiscover(){
+  const sel=$("#recRegion");sel.innerHTML='<option value="">전체 지역</option>';
+  allSidos().forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=SIDO_MAP[s]||s;sel.appendChild(o);});
+  $("#seasonTitle").textContent="지금 계절 추천 · "+curSeason();
+})();
+$("#btnRecommend").addEventListener("click",()=>{
+  const rg=$("#recRegion").value, df=$("#recDiff").value, unv=$("#recUnvisited").checked;
+  const pool=MOUNTAINS.filter(m=>{
+    if(rg&&!mountainSidos(m).includes(rg))return false;
+    if(df==="easy"&&m.difficulty>2)return false;
+    if(df==="mid"&&m.difficulty!==3)return false;
+    if(df==="hard"&&m.difficulty<4)return false;
+    if(unv&&isSummited(m.name))return false;
+    return true;
+  });
+  const box=$("#recResult");
+  if(!pool.length){box.innerHTML='<div class="empty" style="padding:20px">조건에 맞는 산이 없어요.<br>조건을 바꿔 보세요.</div>';return;}
+  const m=pool[Math.floor(Math.random()*pool.length)];
+  box.innerHTML='<div class="big-card"><div class="bn">⛰ '+esc(m.name)+'</div>'
+    +'<div class="bi">'+Math.round(m.height)+'m · '+esc(m.region)+'<br>'+esc(m.desc)+'</div>'
+    +'<button class="btn" id="btnGoMap">지도에서 보기</button></div>';
+  $("#btnGoMap").addEventListener("click",()=>{switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);});
+});
+function renderSeasonCards(){
+  const s=curSeason();
+  const list=MOUNTAINS.filter(m=>m.season.includes(s)).slice(0,20);
+  $("#seasonCards").innerHTML=list.map(m=>'<div class="hcard" data-nm="'+esc(m.name)+'"><div class="n">'+esc(m.name)+'</div><div class="h">'+Math.round(m.height)+'m</div><div class="r">'+esc(m.region.split(",")[0])+'</div></div>').join("");
+  $$("#seasonCards .hcard").forEach(c=>c.addEventListener("click",()=>{
+    const m=MOUNTAINS.find(x=>x.name===c.dataset.nm);
+    switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);
+  }));
+}
+
+/* ===== GPS 추적 ===== */
+const tr={watchId:null,points:[],dist:0,gain:0,last:null,activeMs:0,segStart:0,tick:null,line:null,dot:null,mountain:null,paused:false};
+function trackUIVisible(on){
+  $("#trackFab").classList.toggle("hidden",on);
+  $("#trackBar").classList.toggle("hidden",!on);
+  $("#recordIdle").classList.toggle("hidden",on);
+  $("#recordActive").classList.toggle("hidden",!on);
+}
+function startTracking(mountainName){
+  if(tr.watchId!==null){toast("이미 기록 중이에요.");return;}
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  if(!("geolocation" in navigator)){toast("이 기기/브라우저는 GPS를 지원하지 않아요.");return;}
+  if(location.protocol==="file:"){toast("file:// 환경에서는 GPS가 동작하지 않을 수 있어요. 배포(HTTPS) 환경에서 사용해 주세요.");}
+  tr.points=[];tr.dist=0;tr.gain=0;tr.last=null;tr.activeMs=0;tr.segStart=Date.now();tr.mountain=mountainName||null;tr.paused=false;
+  tr.watchId=navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+  if(tr.line){tr.line.setMap(null);tr.line=null;}
+  if(tr.dot){tr.dot.setMap(null);tr.dot=null;}
+  tr.line=new kakao.maps.Polyline({path:[],strokeWeight:5,strokeColor:"#e53935",strokeOpacity:.9});
+  tr.line.setMap(map);
+  trackUIVisible(true);updateStats();
+  tr.tick=setInterval(updateStats,1000);
+  toast("GPS 기록을 시작합니다"+(mountainName?" · "+mountainName:""));
+  switchTab("map");
+}
+function onPos(p){
+  const c=p.coords;
+  if(c.accuracy!=null&&c.accuracy>50)return; // 정확도 낮은 포인트 버림
+  const lat=c.latitude,lng=c.longitude,alt=(c.altitude==null?null:c.altitude),t=p.timeStamp||Date.now();
+  if(tr.last){const d=hav(tr.last[0],tr.last[1],lat,lng);if(d<5&&!tr.paused){moveDot(lat,lng);return;}} // 5m 미만 이동 무시
+  if(tr.paused){moveDot(lat,lng);return;}
+  if(tr.last){tr.dist+=hav(tr.last[0],tr.last[1],lat,lng);
+    if(alt!=null&&tr.last[2]!=null&&alt>tr.last[2])tr.gain+=alt-tr.last[2];}
+  tr.last=[lat,lng,alt];tr.points.push([lat,lng,alt,t]);
+  if(tr.line){const path=tr.line.getPath();path.push(new kakao.maps.LatLng(lat,lng));tr.line.setPath(path);}
+  moveDot(lat,lng);
+  if(tr.points.length===1){map.setCenter(new kakao.maps.LatLng(lat,lng));map.setLevel(3);}
+  updateStats();
+}
+function moveDot(lat,lng){
+  const pos=new kakao.maps.LatLng(lat,lng);
+  if(tr.dot)tr.dot.setPosition(pos);
+  else{tr.dot=new kakao.maps.CustomOverlay({position:pos,content:'<div class="me-dot"></div>',xAnchor:0.5,yAnchor:0.5});tr.dot.setMap(map);}
+}
+function onPosErr(e){
+  let m="GPS 오류가 발생했어요.";
+  if(e&&e.code===1)m="위치 권한이 거부됐어요. 브라우저 설정에서 위치 권한을 허용해 주세요.";
+  if(e&&e.code===3)m="GPS 신호를 찾지 못했어요. 하늘이 보이는 곳에서 다시 시도해 주세요.";
+  if(location.protocol!=="https:"&&location.protocol!=="http:")m+=" file:// 환경에서는 GPS가 제한됩니다. HTTPS(배포) 환경에서 사용해 주세요.";
+  toast(m);
+}
+function updateStats(){
+  const el=tr.activeMs+(tr.watchId!==null&&!tr.paused?Date.now()-tr.segStart:0);
+  const c=fmtClock(el/1000),d=fmtDist(tr.dist),g=Math.round(tr.gain)+"m";
+  $("#stTime").textContent=c;$("#stDist").textContent=d;$("#stGain").textContent=g;
+  $("#stTime2").textContent=c;$("#stDist2").textContent=d;$("#stGain2").textContent=g;
+}
+function togglePause(){
+  if(tr.watchId===null)return;
+  if(tr.paused){tr.paused=false;tr.segStart=Date.now();$("#btnPause").textContent="일시정지";$("#btnPause2").textContent="일시정지";toast("기록을 재개합니다.");}
+  else{tr.paused=true;tr.activeMs+=Date.now()-tr.segStart;$("#btnPause").textContent="재개";$("#btnPause2").textContent="재개";toast("일시정지됐어요.");}
+  updateStats();
+}
+function endTracking(){
+  if(tr.watchId===null)return;
+  navigator.geolocation.clearWatch(tr.watchId);tr.watchId=null;
+  clearInterval(tr.tick);
+  if(tr.paused){/* 이미 activeMs 반영됨 */}else{tr.activeMs+=Date.now()-tr.segStart;}
+  updateStats();trackUIVisible(false);
+  if(tr.points.length<2){toast("기록된 경로가 너무 짧아 저장하지 않았어요.");cleanupTrack();return;}
+  openSaveDialog();
+}
+function cleanupTrack(){if(tr.line){tr.line.setMap(null);tr.line=null;}if(tr.dot){tr.dot.setMap(null);tr.dot=null;}tr.points=[];tr.mountain=null;}
+$("#trackFab").addEventListener("click",()=>startTracking(null));
+$("#btnStart2").addEventListener("click",()=>startTracking(null));
+$("#btnPause").addEventListener("click",togglePause);
+$("#btnPause2").addEventListener("click",togglePause);
+$("#btnEnd").addEventListener("click",endTracking);
+$("#btnEnd2").addEventListener("click",endTracking);
+
+/* 저장 다이얼로그 */
+function openSaveDialog(){
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
+  $("#saveName").value=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" 등산";
+  $("#saveMemo").value="";
+  $("#saveSummary").textContent="거리 "+fmtDist(tr.dist)+" · 시간 "+fmtDur(tr.activeMs/1000)+" · 상승 "+Math.round(tr.gain)+"m · 포인트 "+tr.points.length+"개";
+  const sel=$("#saveMountain");sel.innerHTML='<option value="">산 선택 안 함</option>';
+  MOUNTAINS.slice().sort((a,b)=>a.name.localeCompare(b.name,"ko")).forEach(m=>{
+    const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.height)+"m)";
+    if(tr.mountain===m.name)o.selected=true;sel.appendChild(o);
+  });
+  $("#saveModal").classList.remove("hidden");
+}
+$("#btnDiscard").addEventListener("click",()=>{$("#saveModal").classList.add("hidden");cleanupTrack();toast("기록을 버렸어요.");});
+$("#btnSave").addEventListener("click",()=>{
+  const name=$("#saveName").value.trim()||"등산 기록";
+  const mt=$("#saveMountain").value||null;
+  const rec={id:"r"+Date.now(),name:name,date:Date.now(),mountain:mt,memo:$("#saveMemo").value.trim(),
+    distance:Math.round(tr.dist),duration:Math.round(tr.activeMs/1000),gain:Math.round(tr.gain),points:tr.points};
+  records.unshift(rec);saveRecords();
+  if(mt&&!isSummited(mt)){summits.push(mt);saveSummits();toast("저장됐어요 🎉 "+mt+" 등정 완료!");}
+  else toast("기록을 저장했어요.");
+  $("#saveModal").classList.add("hidden");cleanupTrack();
+  refreshSummitUI();renderRecords();
+});
+
+/* ===== 기록 목록 ===== */
+function renderRecords(){
+  const box=$("#recordList");
+  if(!records.length){box.innerHTML='<div class="empty">아직 기록이 없어요.<br>등산을 시작해 첫 기록을 남겨보세요 🥾</div>';return;}
+  box.innerHTML=records.map(r=>'<div class="rec-card" data-id="'+r.id+'">'
+    +'<div class="rn">'+esc(r.name)+'</div>'
+    +'<div class="rd">'+fmtDate(r.date)+(r.mountain?" · ⛰ "+esc(r.mountain):"")+(r.memo?"<br>"+esc(r.memo):"")+'</div>'
+    +'<div class="rs"><span>📏 <b>'+fmtDist(r.distance)+'</b></span><span>⏱ <b>'+fmtDur(r.duration)+'</b></span><span>⛰ <b>'+r.gain+'m</b></span></div>'
+    +'<div class="rb"><button class="sbtn view">지도에서 보기</button><button class="sbtn gpx">GPX 저장</button><button class="sbtn del">삭제</button></div>'
+    +"</div>").join("");
+  box.querySelectorAll(".rec-card").forEach(card=>{
+    const r=records.find(x=>x.id===card.dataset.id);
+    card.querySelector(".view").addEventListener("click",e=>{e.stopPropagation();viewRecord(r);});
+    card.querySelector(".gpx").addEventListener("click",e=>{e.stopPropagation();downloadGPX(r);});
+    card.querySelector(".del").addEventListener("click",e=>{e.stopPropagation();
+      if(confirm("이 기록을 삭제할까요?")){records=records.filter(x=>x.id!==r.id);saveRecords();renderRecords();toast("기록을 삭제했어요.");}});
+    card.addEventListener("click",()=>viewRecord(r));
+  });
+}
+let recordLine=null;
+function viewRecord(r){
+  switchTab("map");
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  if(recordLine){recordLine.setMap(null);recordLine=null;}
+  const path=r.points.map(p=>new kakao.maps.LatLng(p[0],p[1]));
+  recordLine=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:"#e53935",strokeOpacity:.9});
+  recordLine.setMap(map);
+  const bounds=new kakao.maps.LatLngBounds();
+  path.forEach(pt=>bounds.extend(pt));
+  map.setBounds(bounds);
+  sheetMode="record";selRecord=r;updateSummary();
+  $("#sheetBody").innerHTML=
+    '<div class="d-title">📍 '+esc(r.name)+'</div>'
+    +'<div class="d-meta">'+fmtDate(r.date)+(r.mountain?'<br>산: '+esc(r.mountain):"")+'<br>거리 '+fmtDist(r.distance)+' · 시간 '+fmtDur(r.duration)+' · 상승 '+r.gain+'m</div>'
+    +(r.memo?'<div class="d-desc">'+esc(r.memo)+'</div>':"")
+    +'<div class="d-btns"><button class="btn ghost" id="recGpx">GPX 저장</button><button class="btn warn" id="recDel">삭제</button></div>';
+  $("#recGpx").addEventListener("click",()=>downloadGPX(r));
+  $("#recDel").addEventListener("click",()=>{if(confirm("이 기록을 삭제할까요?")){
+    records=records.filter(x=>x.id!==r.id);saveRecords();renderRecords();
+    if(recordLine){recordLine.setMap(null);recordLine=null;}renderSheetList();toast("기록을 삭제했어요.");}});
+  setSheet(true);
+}
+function downloadGPX(r){
+  const escXml=s=>String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]));
+  let s='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="hiking-map" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>'+escXml(r.name)+'</name><trkseg>\n';
+  r.points.forEach(p=>{s+='<trkpt lat="'+p[0].toFixed(6)+'" lon="'+p[1].toFixed(6)+'">';
+    if(p[2]!=null)s+='<ele>'+p[2].toFixed(1)+'</ele>';
+    s+='<time>'+new Date(p[3]).toISOString()+'</time></trkpt>\n';});
+  s+='</trkseg></trk>\n</gpx>';
+  const d=new Date(r.date),p2=n=>String(n).padStart(2,"0");
+  const fn="등산기록_"+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+"_"+p2(d.getHours())+p2(d.getMinutes())+".gpx";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([s],{type:"application/gpx+xml"}));
+  a.download=fn;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  toast("GPX 파일을 저장했어요.");
+}
+
+/* ===== 초기화 ===== */
+buildRegionPanel();
+applyFilters();
+renderProgress();
+</script>
+</body>
+</html>
