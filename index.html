@@ -114,9 +114,12 @@ button{font-family:inherit;cursor:pointer}
 .d-desc{font-size:14px;line-height:1.7;color:#424242;margin:12px 0;background:#fafafa;border-radius:12px;padding:12px}
 .d-sec-t{font-size:15px;font-weight:800;margin:16px 0 8px}
 .course{border:1px solid #e0e0e0;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff}
-.course .c-t{font-weight:700;font-size:14px;margin-bottom:3px}
+.course .c-t{font-weight:700;font-size:14px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .course .c-m{font-size:12px;color:#757575}
 .course-empty{font-size:13px;color:#9e9e9e;padding:2px 0 4px}
+.course.done{border-color:#a5d6a7;background:#f9fdf9}
+.c-done{font-size:11px;color:#2e7d32;font-weight:700;margin-left:6px}
+.c-check{flex:0 0 auto;min-width:36px;height:32px;border-radius:999px;border:1px solid #c8e6c9;background:#f1f8e9;color:#2e7d32;font-size:15px;font-weight:700}
 .d-btns{display:flex;gap:10px;margin-top:14px}
 .btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:15px;font-weight:700;min-height:50px}
 .btn.primary{background:#2e7d32;color:#fff}
@@ -639,8 +642,24 @@ function openDetail(m){selMountain=m;selRecord=null;renderDetail(m,true);}
 function courseHTML(name){
   const cs=(typeof COURSES!=="undefined"&&COURSES[name])||[];
   if(!cs.length)return '<div class="course-empty">코스 정보를 준비 중이에요.</div>';
-  return cs.map(c=>'<div class="course"><div class="c-t">'+esc(c.name)+'</div>'
-    +'<div class="c-m">거리 '+(c.dist?c.dist+"km":"-")+" · 소요 "+(c.time||"-")+" · 난이도 "+(c.level||"-")+"</div></div>").join("");
+  return cs.map(c=>{
+    const done=isCourseDone(name,c.name);
+    return '<div class="course'+(done?" done":"")+'"><div class="c-t"><span>'+esc(c.name)
+      +(done?'<span class="c-done">✓ 완료</span>':"")+'</span>'
+      +'<button class="c-check" data-m="'+esc(name)+'" data-c="'+esc(c.name)+'" title="코스 완료 체크">'+(done?"✓":"○")+'</button></div>'
+      +'<div class="c-m">거리 '+(c.dist?c.dist+"km":"-")+" · 소요 "+(c.time||"-")+" · 난이도 "+(c.level||"-")+"</div></div>";
+  }).join("");
+}
+function courseKey(mname,cname){return mname+"|"+cname;}
+function getDoneCourses(){try{return JSON.parse(localStorage.getItem("mtapp_course_done")||"{}");}catch(e){return {};}}
+function isCourseDone(mname,cname){return !!getDoneCourses()[courseKey(mname,cname)];}
+function toggleCourseDone(mname,cname){
+  let o={};try{o=JSON.parse(localStorage.getItem("mtapp_course_done")||"{}");}catch(e){}
+  const k=courseKey(mname,cname);
+  if(o[k]){delete o[k];toast("코스 완료를 해제했어요.");}
+  else{o[k]=Date.now();toast("코스 완료! 🎉");}
+  localStorage.setItem("mtapp_course_done",JSON.stringify(o));
+  const m=MOUNTAINS.find(x=>x.name===mname);if(m)renderDetail(m,false);
 }
 function renderDetail(m,expand){
   sheetMode="detail";updateSummary();sheet.classList.add("fit");
@@ -665,6 +684,7 @@ function renderDetail(m,expand){
   $("#detailBack").addEventListener("click",renderSheetList);
   $("#btnSummit").addEventListener("click",()=>toggleSummit(m.name));
   $("#btnTrackHere").addEventListener("click",()=>{startTracking(m.name);});
+  $("#sheetBody").querySelectorAll(".c-check").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();toggleCourseDone(b.dataset.m,b.dataset.c);}));
   if(expand)setSheet(true);
 }
 
