@@ -518,6 +518,7 @@ function initMap(){
   kakao.maps.event.addListener(map,"zoom_changed",()=>{
     markers.forEach(o=>o.marker.setImage(badgeImage(o.m)));
   });
+  kakao.maps.event.addListener(map,"click",()=>{setSheet(false);}); // 지도 탭하면 시트 접기
   mapReady=true;
   $("#sdkBanner").classList.add("hidden");
   buildMarkers();
