@@ -206,6 +206,13 @@ button{font-family:inherit;cursor:pointer}
 #manualBox .numrow{display:flex;gap:8px}
 #manualBox .numrow>div{flex:1}
 #manualBox .row{display:flex;gap:10px;margin-top:18px}
+/* 로그인 모달 */
+#authModal{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#authBox{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:20px 18px 26px}
+#authBox h3{margin:0 0 6px;font-size:18px}
+#authBox label{display:block;font-size:13px;font-weight:600;color:#616161;margin:12px 0 6px}
+#authBox input{width:100%;border:1px solid #d5d5d5;border-radius:12px;padding:12px;font-size:15px;font-family:inherit;box-sizing:border-box}
+#authBox .row{display:flex;gap:10px;margin-top:18px}
 
 /* 토스트 */
 #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:4000;background:#323232;color:#fff;border-radius:999px;padding:12px 20px;font-size:14px;max-width:88%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
@@ -290,7 +297,7 @@ button{font-family:inherit;cursor:pointer}
   <!-- ============ 기록 탭 ============ -->
   <section id="tab-record" class="tabpage">
     <div class="page" style="padding-bottom:8px">
-      <div class="sec-title">등산 기록</div>
+      <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center"><span>등산 기록</span><button class="sbtn" id="authBtn">로그인</button></div>
       <div class="rec-box" id="recordCtlBox">
         <div id="recordIdle">
           <div style="font-size:14px;color:#616161;line-height:1.7;margin-bottom:12px">GPS로 이동 경로를 추적하고<br>거리·시간·상승고도를 기록하세요.</div>
@@ -358,6 +365,20 @@ button{font-family:inherit;cursor:pointer}
   </div>
 </div>
 
+<!-- 로그인 다이얼로그 -->
+<div id="authModal" class="hidden">
+  <div id="authBox">
+    <h3>로그인</h3>
+    <div style="font-size:13px;color:#616161;line-height:1.6">이메일로 로그인 링크를 보내드려요.<br>로그인하면 기록이 서버에 안전하게 동기화됩니다.</div>
+    <label>이메일</label><input type="email" id="authEmail" placeholder="you@example.com" inputmode="email" autocomplete="email">
+    <div class="row">
+      <button class="btn ghost" id="authCancel">취소</button>
+      <button class="btn primary" id="authSend">링크 보내기</button>
+    </div>
+    <div id="authMsg" style="font-size:13px;margin-top:10px;line-height:1.5"></div>
+  </div>
+</div>
+
 <div id="toast" class="hidden"></div>
 
 <script src="data.js"></script>
@@ -418,26 +439,27 @@ function deviceId(){let id=null;try{id=localStorage.getItem(LS_DEVICE);}catch(e)
 const SB_OK=SUPABASE_URL.indexOf("https://")===0&&SUPABASE_ANON_KEY.indexOf("여기에_")!==0;
 let sb=null;
 if(SB_OK&&window.supabase){try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);}catch(e){sb=null;}}
+let sbUser=null; // 로그인한 사용자 (없으면 로컬 모드)
 function stripSrv(r){const c=Object.assign({},r);delete c._srv;return c;}
-function recToRow(r){return{id:r.id,device_id:deviceId(),name:r.name,date:new Date(r.date).toISOString(),
+function recToRow(r){return{id:r.id,device_id:deviceId(),user_id:sbUser?sbUser.id:null,name:r.name,date:new Date(r.date).toISOString(),
   mountain:r.mountain,memo:r.memo,distance:r.distance,duration:r.duration,gain:r.gain,
   points:r.points,updated_at:new Date().toISOString()};}
 function rowToRec(w){return{id:w.id,name:w.name,date:new Date(w.date).getTime(),mountain:w.mountain,
   memo:w.memo||"",distance:w.distance||0,duration:w.duration||0,gain:w.gain||0,points:w.points||[]};}
 // 저장/삭제 시 서버에 반영 (실패해도 로컬 기록은 유지)
 async function sbUpsert(r){
-  if(!sb)return;
+  if(!sb||!sbUser)return; // 로그인 상태에서만 동기화
   try{const{error}=await sb.from("hiking_records").upsert(recToRow(r),{onConflict:"id"});
     if(error)toast("서버 동기화 실패: "+error.message);}
   catch(e){toast("서버 동기화 실패 (네트워크 오류)");}
 }
 async function sbDelete(id){
-  if(!sb)return;
+  if(!sb||!sbUser)return;
   try{await sb.from("hiking_records").delete().eq("id",id);}catch(e){}
 }
 // 시작 시 서버 기록을 불러와 로컬과 합침 (서버 updated_at이 더 새로우면 서버 버전 우선)
 async function sbPull(){
-  if(!sb)return;
+  if(!sb||!sbUser)return;
   try{
     const{data,error}=await sb.from("hiking_records").select("*").order("date",{ascending:false}).limit(500);
     if(error||!data||!data.length)return;
@@ -461,6 +483,48 @@ async function sbPull(){
     }
   }catch(e){/* 오프라인이면 무시 */}
 }
+
+/* ===== Supabase Auth (이메일 매직링크) ===== */
+async function initAuth(){
+  if(!sb)return;
+  try{
+    const{data}=await sb.auth.getSession();
+    sbUser=data&&data.session?data.session.user:null;
+  }catch(e){sbUser=null;}
+  updateAuthUI();
+  sb.auth.onAuthStateChange(async(ev,session)=>{
+    sbUser=session?session.user:null;
+    updateAuthUI();
+    if(ev==="SIGNED_IN"&&sbUser){
+      $("#authModal").classList.add("hidden");
+      toast("로그인됐어요. 기록을 동기화합니다.");
+      for(const r of records){await sbUpsert(r);}
+      sbPull();
+    }
+  });
+}
+function updateAuthUI(){
+  const b=$("#authBtn");if(!b)return;
+  if(sbUser){b.textContent="로그아웃";b.title=sbUser.email||"";}
+  else{b.textContent="로그인";b.title="";}
+}
+$("#authBtn").addEventListener("click",()=>{
+  if(!sb){toast("Supabase 키를 먼저 입력해주세요.");return;}
+  if(sbUser){if(confirm("로그아웃할까요? (기록은 이 기기에 그대로 남아요)"))sb.auth.signOut();}
+  else{$("#authEmail").value="";$("#authMsg").textContent="";$("#authModal").classList.remove("hidden");}
+});
+$("#authCancel").addEventListener("click",()=>$("#authModal").classList.add("hidden"));
+$("#authSend").addEventListener("click",async()=>{
+  const email=$("#authEmail").value.trim();
+  if(!email||email.indexOf("@")<0){toast("이메일을 입력해주세요.");return;}
+  const btn=$("#authSend");btn.disabled=true;
+  try{
+    const{error}=await sb.auth.signInWithOtp({email:email,options:{emailRedirectTo:location.origin+location.pathname}});
+    const msg=$("#authMsg");
+    if(error){msg.style.color="#c62828";msg.textContent="전송 실패: "+error.message;}
+    else{msg.style.color="#2e7d32";msg.textContent="로그인 링크를 보냈어요. 메일함에서 링크를 눌러주세요.";}
+  }finally{btn.disabled=false;}
+});
 
 /* ===== 지역(시도) 목록 ===== */
 const SIDO_ORDER=["서울","경기","인천","강원특별자치도","충북","충남","대전","세종","전북특별자치도","전남","광주","경북","경남","대구","울산","부산","제주특별자치도"];
@@ -1141,7 +1205,7 @@ buildRegionPanel();
 applyFilters();
 renderProgress();
 backfillCourseRecords(); // 체크된 코스 중 기록 없는 것 보충
-sbPull(); // 서버 기록 불러와 합치기 (키 입력된 경우만)
+(async()=>{await initAuth();sbPull();})(); // 로그인 세션 확인 후 서버 기록 동기화
 </script>
 </body>
 </html>
