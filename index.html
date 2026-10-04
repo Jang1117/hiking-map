@@ -173,6 +173,16 @@ button{font-family:inherit;cursor:pointer}
 #saveBox input[type=text],#saveBox select,#saveBox textarea{width:100%;border:1px solid #d5d5d5;border-radius:12px;padding:12px;font-size:15px;font-family:inherit}
 #saveBox textarea{height:80px;resize:none}
 #saveBox .row{display:flex;gap:10px;margin-top:18px}
+/* 직접 기록 추가 모달 */
+#manualModal{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#manualBox{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:20px 18px 26px;max-height:88%;overflow-y:auto}
+#manualBox h3{margin:0 0 6px;font-size:18px}
+#manualBox label{display:block;font-size:13px;font-weight:600;color:#616161;margin:12px 0 6px}
+#manualBox input,#manualBox select,#manualBox textarea{width:100%;border:1px solid #d5d5d5;border-radius:12px;padding:12px;font-size:15px;font-family:inherit;box-sizing:border-box}
+#manualBox textarea{height:70px;resize:none}
+#manualBox .numrow{display:flex;gap:8px}
+#manualBox .numrow>div{flex:1}
+#manualBox .row{display:flex;gap:10px;margin-top:18px}
 
 /* 토스트 */
 #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:4000;background:#323232;color:#fff;border-radius:999px;padding:12px 20px;font-size:14px;max-width:88%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
@@ -260,6 +270,7 @@ button{font-family:inherit;cursor:pointer}
         <div id="recordIdle">
           <div style="font-size:14px;color:#616161;line-height:1.7;margin-bottom:12px">GPS로 이동 경로를 추적하고<br>거리·시간·상승고도를 기록하세요.</div>
           <button class="btn primary" id="btnStart2">🥾 등산 시작</button>
+          <button class="btn ghost" id="btnManual" style="margin-top:8px">✏️ 직접 기록 추가</button>
         </div>
         <div id="recordActive" class="hidden">
           <div class="stats" style="display:flex;gap:16px;margin-bottom:10px">
@@ -295,6 +306,29 @@ button{font-family:inherit;cursor:pointer}
     <div class="row">
       <button class="btn ghost" id="btnDiscard">버리기</button>
       <button class="btn primary" id="btnSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 직접 기록 추가 다이얼로그 -->
+<div id="manualModal" class="hidden">
+  <div id="manualBox">
+    <h3>기록 추가</h3>
+    <label>이름</label><input type="text" id="mName" placeholder="예: 남한산성 둘레길">
+    <label>날짜</label><input type="date" id="mDate">
+    <label>산 태그 (선택하면 자동 등정 처리)</label><select id="mMountain"></select>
+    <div class="numrow">
+      <div><label>거리 (km)</label><input type="number" id="mDist" min="0" step="0.1" inputmode="decimal" placeholder="0"></div>
+      <div><label>상승고도 (m)</label><input type="number" id="mGain" min="0" step="10" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <div class="numrow">
+      <div><label>소요 시간 (시간)</label><input type="number" id="mHour" min="0" step="1" inputmode="numeric" placeholder="0"></div>
+      <div><label>소요 시간 (분)</label><input type="number" id="mMin" min="0" max="59" step="1" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <label>메모</label><textarea id="mMemo" placeholder="오늘 등산은 어땠나요?"></textarea>
+    <div class="row">
+      <button class="btn ghost" id="mCancel">취소</button>
+      <button class="btn primary" id="mSave">저장</button>
     </div>
   </div>
 </div>
@@ -789,6 +823,35 @@ $("#btnSave").addEventListener("click",()=>{
   refreshSummitUI();renderRecords();
 });
 
+/* ===== 직접 기록 추가 ===== */
+$("#btnManual").addEventListener("click",()=>{
+  $("#mName").value="";
+  $("#mDate").value=new Date().toISOString().slice(0,10);
+  const sel=$("#mMountain");sel.innerHTML='<option value="">산 선택 안 함</option>';
+  MOUNTAINS.slice().sort((a,b)=>a.name.localeCompare(b.name,"ko")).forEach(m=>{
+    const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.h)+"m)";sel.appendChild(o);
+  });
+  $("#mDist").value="";$("#mGain").value="";$("#mHour").value="";$("#mMin").value="";$("#mMemo").value="";
+  $("#manualModal").classList.remove("hidden");
+});
+$("#mCancel").addEventListener("click",()=>$("#manualModal").classList.add("hidden"));
+$("#mSave").addEventListener("click",()=>{
+  const name=$("#mName").value.trim()||"등산 기록";
+  const dv=$("#mDate").value;
+  const date=dv?new Date(dv+"T12:00:00").getTime():Date.now();
+  const mt=$("#mMountain").value||null;
+  const distKm=parseFloat($("#mDist").value)||0;
+  const dur=(parseInt($("#mHour").value,10)||0)*3600+(parseInt($("#mMin").value,10)||0)*60;
+  const gain=parseInt($("#mGain").value,10)||0;
+  const rec={id:"m"+Date.now(),name:name,date:date,mountain:mt,memo:$("#mMemo").value.trim(),
+    distance:Math.round(distKm*1000),duration:dur,gain:gain,points:[]};
+  records.unshift(rec);saveRecords();sbUpsert(rec);
+  if(mt&&!isSummited(mt)){summits.push(mt);saveSummits();toast("저장됐어요 🎉 "+mt+" 등정 완료!");}
+  else toast("기록을 저장했어요.");
+  $("#manualModal").classList.add("hidden");
+  refreshSummitUI();renderRecords();
+});
+
 /* ===== 기록 목록 ===== */
 function renderRecords(){
   const box=$("#recordList");
@@ -797,12 +860,13 @@ function renderRecords(){
     +'<div class="rn">'+esc(r.name)+'</div>'
     +'<div class="rd">'+fmtDate(r.date)+(r.mountain?" · ⛰ "+esc(r.mountain):"")+(r.memo?"<br>"+esc(r.memo):"")+'</div>'
     +'<div class="rs"><span>📏 <b>'+fmtDist(r.distance)+'</b></span><span>⏱ <b>'+fmtDur(r.duration)+'</b></span><span>⛰ <b>'+r.gain+'m</b></span></div>'
-    +'<div class="rb"><button class="sbtn view">지도에서 보기</button><button class="sbtn gpx">GPX 저장</button><button class="sbtn del">삭제</button></div>'
+    +'<div class="rb"><button class="sbtn view">지도에서 보기</button>'+(r.points&&r.points.length>1?'<button class="sbtn gpx">GPX 저장</button>':"")+'<button class="sbtn del">삭제</button></div>'
     +"</div>").join("");
   box.querySelectorAll(".rec-card").forEach(card=>{
     const r=records.find(x=>x.id===card.dataset.id);
     card.querySelector(".view").addEventListener("click",e=>{e.stopPropagation();viewRecord(r);});
-    card.querySelector(".gpx").addEventListener("click",e=>{e.stopPropagation();downloadGPX(r);});
+    const gpxBtn=card.querySelector(".gpx");
+    if(gpxBtn)gpxBtn.addEventListener("click",e=>{e.stopPropagation();downloadGPX(r);});
     card.querySelector(".del").addEventListener("click",e=>{e.stopPropagation();
       if(confirm("이 기록을 삭제할까요?")){records=records.filter(x=>x.id!==r.id);saveRecords();sbDelete(r.id);renderRecords();toast("기록을 삭제했어요.");}});
     card.addEventListener("click",()=>viewRecord(r));
@@ -814,25 +878,29 @@ function viewRecord(r){
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
   sheet.classList.add("fit");
   if(recordLine){recordLine.setMap(null);recordLine=null;}
-  const path=r.points.map(p=>new kakao.maps.LatLng(p[0],p[1]));
-  recordLine=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:"#e53935",strokeOpacity:.9});
-  recordLine.setMap(map);
-  const bounds=new kakao.maps.LatLngBounds();
-  path.forEach(pt=>bounds.extend(pt));
-  map.setBounds(bounds);
+  const hasTrack=r.points&&r.points.length>1;
+  if(hasTrack){
+    const path=r.points.map(p=>new kakao.maps.LatLng(p[0],p[1]));
+    recordLine=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:"#e53935",strokeOpacity:.9});
+    recordLine.setMap(map);
+    const bounds=new kakao.maps.LatLngBounds();
+    path.forEach(pt=>bounds.extend(pt));
+    map.setBounds(bounds);
+  }
   sheetMode="record";selRecord=r;updateSummary();
   $("#sheetBody").innerHTML=
     '<div class="d-title">📍 '+esc(r.name)+'</div>'
     +'<div class="d-meta">'+fmtDate(r.date)+(r.mountain?'<br>산: '+esc(r.mountain):"")+'<br>거리 '+fmtDist(r.distance)+' · 시간 '+fmtDur(r.duration)+' · 상승 '+r.gain+'m</div>'
     +(r.memo?'<div class="d-desc">'+esc(r.memo)+'</div>':"")
-    +'<div class="d-btns"><button class="btn ghost" id="recGpx">GPX 저장</button><button class="btn warn" id="recDel">삭제</button></div>';
-  $("#recGpx").addEventListener("click",()=>downloadGPX(r));
+    +'<div class="d-btns">'+(hasTrack?'<button class="btn ghost" id="recGpx">GPX 저장</button>':"")+'<button class="btn warn" id="recDel">삭제</button></div>';
+  if(hasTrack)$("#recGpx").addEventListener("click",()=>downloadGPX(r));
   $("#recDel").addEventListener("click",()=>{if(confirm("이 기록을 삭제할까요?")){
     records=records.filter(x=>x.id!==r.id);saveRecords();sbDelete(r.id);renderRecords();
     if(recordLine){recordLine.setMap(null);recordLine=null;}renderSheetList();toast("기록을 삭제했어요.");}});
   setSheet(true);
 }
 function downloadGPX(r){
+  if(!r.points||!r.points.length){toast("GPS 경로가 없는 기록이에요.");return;}
   const escXml=s=>String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]));
   let s='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="hiking-map" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>'+escXml(r.name)+'</name><trkseg>\n';
   r.points.forEach(p=>{s+='<trkpt lat="'+p[0].toFixed(6)+'" lon="'+p[1].toFixed(6)+'">';
