@@ -57,6 +57,7 @@ button{font-family:inherit;cursor:pointer}
 
 /* 내 위치 버튼 */
 #locateBtn{position:absolute;top:10px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px;color:#2e7d32}
+#homeBtn{position:absolute;bottom:76px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px}
 #maptypeSeg{position:absolute;top:16px;right:66px;z-index:1000;display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.2);overflow:hidden}
 #maptypeSeg button{border:0;background:none;padding:9px 13px;font-size:13px;color:#757575;font-weight:700;cursor:pointer}
 #maptypeSeg button.on{background:#2e7d32;color:#fff}
@@ -240,6 +241,7 @@ button{font-family:inherit;cursor:pointer}
       <div id="seasonPanel" class="dropPanel hidden"><div class="grid" id="seasonOpts"></div></div>
     </div>
     <button id="locateBtn" title="내 위치">◎</button>
+    <button id="homeBtn" title="처음으로">🏠</button>
     <div id="maptypeSeg"><button data-t="normal" class="on">일반</button><button data-t="skyview">위성</button></div>
     <button id="trackFab">🥾 등산 시작</button>
     <div id="trackBar" class="hidden">
@@ -579,6 +581,18 @@ $("#locateBtn").addEventListener("click",()=>{
   if(c){map.panTo(showMe(c.lat,c.lng));return;} // 저장된 위치 재사용: 권한을 다시 묻지 않음
   requestPos((lat,lng)=>map.panTo(new kakao.maps.LatLng(lat,lng)));
 });
+/* 홈: 첫 화면으로 (필터 초기화 + 전국 지도) */
+function goHome(){
+  filters.cat="all";filters.region="";filters.season="";
+  $$("#chips .chip[data-cat]").forEach(c=>c.classList.toggle("active",c.dataset.cat==="all"));
+  $("#chipRegion").textContent="지역 ▾";$("#chipRegion").classList.remove("picked");
+  $("#chipSeason").textContent="계절 ▾";$("#chipSeason").classList.remove("picked");
+  $("#searchInput").value="";$("#searchDrop").classList.add("hidden");
+  switchTab("map");
+  if(mapReady){map.setLevel(13);map.setCenter(new kakao.maps.LatLng(36.35,127.9));}
+  applyFilters();setSheet(false);
+}
+$("#homeBtn").addEventListener("click",goHome);
 
 /* ===== 필터 + 검색 ===== */
 const filters={cat:"all",region:"",season:""};
