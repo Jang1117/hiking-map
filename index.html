@@ -26,8 +26,6 @@ button{font-family:inherit;cursor:pointer}
 
 /* ===== 지도 탭 ===== */
 #map{position:absolute;inset:0;z-index:0}
-/* 카카오 우상단 지도타입 컨트롤이 검색창과 겹치지 않도록 오른쪽 여백 확보 */
-#searchWrap{margin-right:78px}
 /* 카카오 앱키 안내 배너 */
 #sdkBanner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1500;background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:26px 24px;max-width:86%;text-align:center}
 #sdkBanner .sb-t{font-size:17px;font-weight:800;margin-bottom:10px}
@@ -59,6 +57,9 @@ button{font-family:inherit;cursor:pointer}
 
 /* 내 위치 버튼 */
 #locateBtn{position:absolute;top:118px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px;color:#2e7d32}
+#maptypeSeg{position:absolute;top:172px;right:12px;z-index:1000;display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.2);overflow:hidden}
+#maptypeSeg button{border:0;background:none;padding:9px 13px;font-size:13px;color:#757575;font-weight:700;cursor:pointer}
+#maptypeSeg button.on{background:#2e7d32;color:#fff}
 
 /* GPS 플로팅 */
 #trackFab{position:absolute;right:14px;bottom:170px;z-index:1000;border:0;background:#2e7d32;color:#fff;font-size:15px;font-weight:700;border-radius:999px;padding:14px 20px;box-shadow:0 4px 14px rgba(46,125,50,.45)}
@@ -78,6 +79,8 @@ button{font-family:inherit;cursor:pointer}
 #sheet{position:absolute;left:0;right:0;bottom:0;z-index:1100;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:72%;transition:height .18s ease;touch-action:none}
 #sheet.collapsed{height:64px}
 #sheet.expanded{height:72%}
+#sheet.expanded.fit{height:auto;max-height:72%}
+#sheet.expanded.fit #sheetBody{flex:none;overflow:visible}
 #sheetHandle{padding:8px 0 2px;display:flex;justify-content:center;flex:0 0 auto;cursor:grab}
 #sheetHandle span{width:44px;height:5px;border-radius:3px;background:#cfcfcf}
 #sheetSummary{flex:0 0 auto;padding:2px 18px 10px;font-size:14px;font-weight:600;color:#424242;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
@@ -109,6 +112,11 @@ button{font-family:inherit;cursor:pointer}
 .d-title{font-size:21px;font-weight:800;margin:2px 0 4px}
 .d-meta{font-size:14px;color:#616161;line-height:1.7}
 .d-desc{font-size:14px;line-height:1.7;color:#424242;margin:12px 0;background:#fafafa;border-radius:12px;padding:12px}
+.d-sec-t{font-size:15px;font-weight:800;margin:16px 0 8px}
+.course{border:1px solid #e0e0e0;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.course .c-t{font-weight:700;font-size:14px;margin-bottom:3px}
+.course .c-m{font-size:12px;color:#757575}
+.course-empty{font-size:13px;color:#9e9e9e;padding:2px 0 4px}
 .d-btns{display:flex;gap:10px;margin-top:14px}
 .btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:15px;font-weight:700;min-height:50px}
 .btn.primary{background:#2e7d32;color:#fff}
@@ -199,6 +207,7 @@ button{font-family:inherit;cursor:pointer}
       <div id="seasonPanel" class="dropPanel hidden"><div class="grid" id="seasonOpts"></div></div>
     </div>
     <button id="locateBtn" title="내 위치">◎</button>
+    <div id="maptypeSeg"><button data-t="normal" class="on">일반</button><button data-t="skyview">위성</button></div>
     <button id="trackFab">🥾 등산 시작</button>
     <div id="trackBar" class="hidden">
       <div class="stats">
@@ -293,15 +302,16 @@ button{font-family:inherit;cursor:pointer}
 <div id="toast" class="hidden"></div>
 
 <script src="data.js"></script>
+<script src="courses.js"></script>
 <script>
 "use strict";
 // ★★★ 카카오 앱키 입력 (https://developers.kakao.com → 내 애플리케이션 → JavaScript 키)
 // 이 값을 본인의 JavaScript 키로 교체하세요. 아래 로더가 SDK URL의 appkey를 자동으로 채웁니다.
-const KAKAO_APP_KEY = "9b8113591f35c3409335bdb4b5ee5613";
+const KAKAO_APP_KEY = "여기에_카카오_앱키_입력";
 // ★★★ Supabase 설정 (https://supabase.com → 프로젝트 → Project Settings)
 // 기록을 서버에 저장하려면 아래 두 값을 입력하세요. Publishable key는 브라우저 공개용이라 괜찮습니다 (Secret key 절대 금지).
-const SUPABASE_URL = "https://hokwfwnxqjiioembbaui.supabase.co";         // 예: https://xxx.supabase.co
-const SUPABASE_ANON_KEY = "sb_publishable_tQcaGkou0gLfFeOwHcGL2A_o954tndq"; // Publishable key (sb_publishable_...)
+const SUPABASE_URL = "여기에_SUPABASE_URL_입력";         // 예: https://xxx.supabase.co
+const SUPABASE_ANON_KEY = "여기에_SUPABASE_ANON_KEY_입력"; // Publishable key (sb_publishable_...)
 
 /* ===== 유틸 ===== */
 const $=s=>document.querySelector(s);
@@ -443,7 +453,6 @@ function buildMarkers(){
 function initMap(){
   map=new kakao.maps.Map($("#map"),{center:new kakao.maps.LatLng(36.35,127.9),level:13});
   map.addControl(new kakao.maps.ZoomControl(),kakao.maps.ControlPosition.RIGHT);
-  map.addControl(new kakao.maps.MapTypeControl(),kakao.maps.ControlPosition.TOPRIGHT);
   clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:8,calculator:[10,30,50],styles:CLUSTER_STYLES});
   kakao.maps.event.addListener(map,"zoom_changed",()=>{
     markers.forEach(o=>o.marker.setImage(badgeImage(o.m)));
@@ -464,6 +473,11 @@ function showSdkError(){$("#sdkBanner").classList.remove("hidden");}
 
 /* 내 위치 */
 let meOverlay=null;
+$$("#maptypeSeg button").forEach(b=>b.addEventListener("click",()=>{
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  $$("#maptypeSeg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+  map.setMapTypeId(b.dataset.t==="skyview"?kakao.maps.MapTypeId.SKYVIEW:kakao.maps.MapTypeId.NORMAL);
+}));
 $("#locateBtn").addEventListener("click",()=>{
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
   if(!navigator.geolocation){toast("이 기기에서 위치 기능을 사용할 수 없어요.");return;}
@@ -561,7 +575,7 @@ let suppressSheetClick=false;
     el.addEventListener("mousedown",start);window.addEventListener("mousemove",move);window.addEventListener("mouseup",end);});
 })();
 function updateSummary(){
-  if(sheetMode==="detail"&&selMountain){$("#sheetSummary").innerHTML=esc(selMountain.name)+'<span class="sub">'+Math.round(selMountain.height)+"m · "+esc(selMountain.region)+"</span>";}
+  if(sheetMode==="detail"&&selMountain){$("#sheetSummary").innerHTML=esc(selMountain.name)+'<span class="sub">'+Math.round(selMountain.h)+"m · "+esc(selMountain.r)+"</span>";}
   else if(sheetMode==="record"&&selRecord){$("#sheetSummary").innerHTML="📍 "+esc(selRecord.name)+'<span class="sub">'+fmtDate(selRecord.date)+"</span>";}
   else{$("#sheetSummary").innerHTML="⛰ 산 "+filtered.length+"곳"+'<span class="sub">목록을 보려면 위로 스와이프</span>';}
 }
@@ -580,6 +594,7 @@ function cardHTML(m){
 }
 function renderSheetList(){
   sheetMode="list";selMountain=null;selRecord=null;updateSummary();
+  sheet.classList.remove("fit");
   const body=$("#sheetBody");
   body.innerHTML=filtered.map(cardHTML).join("")||'<div class="empty">조건에 맞는 산이 없어요.</div>';
   body.querySelectorAll(".mcard").forEach(c=>c.addEventListener("click",()=>{
@@ -588,8 +603,14 @@ function renderSheetList(){
   setSheet(false);
 }
 function openDetail(m){selMountain=m;selRecord=null;renderDetail(m,true);}
+function courseHTML(name){
+  const cs=(typeof COURSES!=="undefined"&&COURSES[name])||[];
+  if(!cs.length)return '<div class="course-empty">코스 정보를 준비 중이에요.</div>';
+  return cs.map(c=>'<div class="course"><div class="c-t">'+esc(c.name)+'</div>'
+    +'<div class="c-m">거리 '+(c.dist?c.dist+"km":"-")+" · 소요 "+(c.time||"-")+" · 난이도 "+(c.level||"-")+"</div></div>").join("");
+}
 function renderDetail(m,expand){
-  sheetMode="detail";updateSummary();
+  sheetMode="detail";updateSummary();sheet.classList.add("fit");
   const done=isSummited(m.name);
   $("#sheetBody").innerHTML=
     '<button id="detailBack">‹ 목록으로</button>'
@@ -603,6 +624,7 @@ function renderDetail(m,expand){
     +m.s.map(s=>'<span class="bdg season">'+s+' 추천</span>').join("")
     +"</div>"
     +'<div class="d-desc">'+esc(m.d)+"</div>"
+    +'<div class="d-sec-t">🥾 등산 코스</div><div class="d-courses">'+courseHTML(m.name)+"</div>"
     +'<div class="d-btns">'
     +'<button class="btn '+(done?"done-on":"ghost")+'" id="btnSummit">'+(done?"✓ 등정 완료 (해제)":"등정 완료 체크")+'</button>'
     +'<button class="btn primary" id="btnTrackHere">이 산으로 GPS 기록 시작</button>'
@@ -791,6 +813,7 @@ let recordLine=null;
 function viewRecord(r){
   switchTab("map");
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  sheet.classList.add("fit");
   if(recordLine){recordLine.setMap(null);recordLine=null;}
   const path=r.points.map(p=>new kakao.maps.LatLng(p[0],p[1]));
   recordLine=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:"#e53935",strokeOpacity:.9});
