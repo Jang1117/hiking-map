@@ -700,14 +700,49 @@ function getDoneCourses(){
   }catch(e){return {};}
 }
 function isCourseDone(mname,cname,dir){return !!getDoneCourses()[courseDoneKey(mname,cname,dir)];}
+function parseCourseTime(s){
+  if(!s)return 0;let sec=0,m;
+  if(m=String(s).match(/(\d+)\s*시간/))sec+=parseInt(m[1],10)*3600;
+  if(m=String(s).match(/(\d+)\s*분/))sec+=parseInt(m[1],10)*60;
+  return sec;
+}
+function courseRecId(mname,cname,dir){return "c_"+dir+"_"+mname+"_"+cname;}
+function makeCourseRecord(mname,cname,dir,ts){
+  const cs=(typeof COURSES!=="undefined"&&COURSES[mname])||[];
+  const c=cs.find(x=>x.name===cname)||{};
+  const label=dir==="up"?"오름":"내림";
+  return {id:courseRecId(mname,cname,dir),name:mname+" "+cname+" ("+label+")",
+    date:ts||Date.now(),mountain:mname,memo:"코스 완료로 자동 기록됨",
+    distance:c.dist?Math.round(c.dist*1000):0,duration:parseCourseTime(c.time),gain:0,points:[]};
+}
 function toggleCourseDone(mname,cname,dir){
   let o={};try{o=JSON.parse(localStorage.getItem("mtapp_course_done")||"{}");}catch(e){}
   const k=courseDoneKey(mname,cname,dir);
   const label=dir==="up"?"오름":"내림";
-  if(o[k]){delete o[k];toast(label+" 완료를 해제했어요.");}
-  else{o[k]=Date.now();toast(label+" 완료! 🎉");}
+  if(o[k]){
+    delete o[k];
+    const rid=courseRecId(mname,cname,dir);
+    records=records.filter(r=>r.id!==rid);saveRecords();sbDelete(rid);
+    toast(label+" 완료를 해제하고 기록에서 삭제했어요.");
+  }else{
+    o[k]=Date.now();
+    const rec=makeCourseRecord(mname,cname,dir);
+    records.unshift(rec);saveRecords();sbUpsert(rec);
+    toast(label+" 완료! 기록에 추가했어요 🎉");
+  }
   localStorage.setItem("mtapp_course_done",JSON.stringify(o));
   const m=MOUNTAINS.find(x=>x.name===mname);if(m)renderDetail(m,false);
+  if($("#tab-record")&&$("#tab-record").classList.contains("active"))renderRecords();
+}
+/* 이미 체크된 코스 중 기록이 없는 것을 보충 */
+function backfillCourseRecords(){
+  const o=getDoneCourses();let changed=false;
+  for(const k of Object.keys(o)){
+    const m=k.match(/^(.*)\|(.*)\|(up|down)$/);if(!m)continue;
+    const rec=makeCourseRecord(m[1],m[2],m[3],o[k]);
+    if(!records.find(r=>r.id===rec.id)){records.unshift(rec);sbUpsert(rec);changed=true;}
+  }
+  if(changed)saveRecords();
 }
 function renderDetail(m,expand){
   sheetMode="detail";updateSummary();sheet.classList.add("fit");
@@ -988,6 +1023,7 @@ function downloadGPX(r){
 buildRegionPanel();
 applyFilters();
 renderProgress();
+backfillCourseRecords(); // 체크된 코스 중 기록 없는 것 보충
 sbPull(); // 서버 기록 불러와 합치기 (키 입력된 경우만)
 </script>
 </body>
