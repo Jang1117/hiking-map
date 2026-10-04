@@ -176,6 +176,9 @@ button{font-family:inherit;cursor:pointer}
 .cinfo{flex:1;min-width:0;cursor:pointer}
 .cinfo .cnm{display:block}
 .cstat{display:block;font-size:12px;color:#757575;margin-top:2px}
+.cstat[data-id]{cursor:pointer}
+.tedit{width:54px;font-size:13px;border:1px solid #a5d6a7;border-radius:8px;padding:4px 6px;font-family:inherit}
+.tedit-ok{border:0;background:#2e7d32;color:#fff;border-radius:8px;padding:5px 10px;font-size:13px;font-weight:700;cursor:pointer}
 .cdt{font-size:12px;color:#616161;white-space:nowrap;border-bottom:1px dashed #9e9e9e;cursor:pointer}
 .cx{border:0;background:none;color:#b0b0b0;font-size:19px;cursor:pointer;padding:0 2px;line-height:1}
 .date-edit{font-size:13px;border:1px solid #a5d6a7;border-radius:8px;padding:4px 6px;font-family:inherit}
@@ -984,6 +987,22 @@ function removeCourseRecord(id){
   records=records.filter(x=>x.id!==id);saveRecords();sbDelete(id);
   renderRecords();toast("기록을 삭제했어요.");
 }
+function bindTimeEdit(scope){
+  scope.querySelectorAll(".cstat[data-id]").forEach(el=>el.addEventListener("click",e=>{
+    e.stopPropagation();
+    const r=records.find(x=>x.id===el.dataset.id);if(!r||el.querySelector("input"))return;
+    const h=Math.floor((r.duration||0)/3600),m=Math.floor(((r.duration||0)%3600)/60);
+    el.innerHTML='<input type="number" class="tedit" id="teH" min="0" inputmode="numeric" value="'+h+'"> 시간 '
+      +'<input type="number" class="tedit" id="teM" min="0" max="59" inputmode="numeric" value="'+m+'"> 분 '
+      +'<button class="tedit-ok">✓</button>';
+    el.querySelectorAll("input").forEach(i=>i.addEventListener("click",ev=>ev.stopPropagation()));
+    el.querySelector(".tedit-ok").addEventListener("click",ev=>{
+      ev.stopPropagation();
+      const hh=parseInt(el.querySelector("#teH").value,10)||0,mm=parseInt(el.querySelector("#teM").value,10)||0;
+      r.duration=hh*3600+mm*60;saveRecords();sbUpsert(r);renderRecords();toast("시간을 바꿨어요.");
+    });
+  }));
+}
 function bindDateEdit(scope){
   scope.querySelectorAll(".cdt").forEach(el=>el.addEventListener("click",e=>{
     e.stopPropagation();
@@ -1011,13 +1030,14 @@ function renderRecords(){
   courseRecs.forEach(r=>{const m=r.mountain||"코스 기록";if(!gmap[m]){gmap[m]=[];groups.push(m);}gmap[m].push(r);});
   let h=groups.map(m=>{
     const rs=gmap[m];
+    rs.sort((a,b)=>(courseDirOf(a)==="up"?0:1)-(courseDirOf(b)==="up"?0:1)); // 오름 먼저
     const totD=rs.reduce((a,r)=>a+(r.distance||0),0),totT=rs.reduce((a,r)=>a+(r.duration||0),0);
     return '<div class="rec-card"><div class="rn">⛰ '+esc(m)+'<span class="rd-sub">코스 '+rs.length+'건</span></div>'
       +rs.map(r=>{
         const dir=courseDirOf(r);
         return '<div class="crow"><span class="cbadge '+(dir==="up"?"up":"down")+'">'+(dir==="up"?"▲ 오름":"▼ 내림")+'</span>'
           +'<span class="cinfo" data-id="'+r.id+'" title="지도에서 보기"><span class="cnm">'+esc(courseNameOf(r))+'</span>'
-          +'<span class="cstat">'+fmtDist(r.distance)+' · '+fmtDur(r.duration)+'</span></span>'
+          +'<span class="cstat" data-id="'+r.id+'" title="시간 수정">'+fmtDist(r.distance)+' · '+fmtDur(r.duration)+'</span></span>'
           +'<span class="cdt" data-id="'+r.id+'" title="날짜 수정">'+dateInputVal(r.date)+'</span>'
           +'<button class="cx" data-id="'+r.id+'" title="삭제">×</button></div>';
       }).join("")
@@ -1050,6 +1070,7 @@ function renderRecords(){
     card.addEventListener("click",()=>viewRecord(r));
   });
   bindDateEdit(box);
+  bindTimeEdit(box);
 }
 let recordLine=null;
 function viewRecord(r){
