@@ -6,6 +6,7 @@
 <title>등산 지도 — 전국 명산 & GPS 기록</title>
 <!-- 카카오맵 SDK: 아래 JS 상수 KAKAO_APP_KEY에 본인의 JavaScript 키를 입력하면 이 태그가 자동으로 SDK를 불러옵니다 -->
 <script id="kakao-sdk-loader"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* ===== 기본 ===== */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -96,6 +97,7 @@ button{font-family:inherit;cursor:pointer}
 .bdg{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px}
 .bdg.top100{background:#e8f5e9;color:#2e7d32}
 .bdg.np{background:#1b5e20;color:#fff}
+.bdg.pp{background:#e0f2f1;color:#00695c}
 .bdg.done{background:#fff3e0;color:#e65100}
 .bdg.season{background:#e3f2fd;color:#1565c0}
 .diffbar{display:inline-flex;gap:3px;vertical-align:middle;margin-left:6px}
@@ -188,6 +190,7 @@ button{font-family:inherit;cursor:pointer}
         <button class="chip active" data-cat="all">전체</button>
         <button class="chip" data-cat="top100">100대명산</button>
         <button class="chip" data-cat="np">국립공원</button>
+        <button class="chip" data-cat="pp">도립공원</button>
         <button class="chip" data-cat="easy">초보추천</button>
         <button class="chip" id="chipRegion">지역 ▾</button>
         <button class="chip" id="chipSeason">계절 ▾</button>
@@ -289,12 +292,17 @@ button{font-family:inherit;cursor:pointer}
 
 <div id="toast" class="hidden"></div>
 
+<script src="data.js"></script>
 <script>
 "use strict";
 // ★★★ 카카오 앱키 입력 (https://developers.kakao.com → 내 애플리케이션 → JavaScript 키)
 // 이 값을 본인의 JavaScript 키로 교체하세요. 아래 로더가 SDK URL의 appkey를 자동으로 채웁니다.
 const KAKAO_APP_KEY = "여기에_카카오_앱키_입력";
-const MOUNTAINS = [{"name":"가리산","peak":null,"height":1050.9,"region":"강원특별자치도","lat":37.87139,"lng":127.95639,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"홍천·춘천에 걸친 산, 원시림과 계곡이 아름다운 백두대간 줄기"},{"name":"가리왕산","peak":null,"height":1561.9,"region":"강원특별자치도","lat":37.46139,"lng":128.56333,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을","겨울"],"desc":"평창올림픽 활강 경기장이 열린 정선·평창의 고산"},{"name":"가야산","peak":"상왕봉","height":1432.6,"region":"경남,경북","lat":35.82222,"lng":128.11806,"national_park":true,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["봄","가을"],"desc":"상왕봉·해인사 품은 명산, 철쭉과 단풍이 아름다운 가야산국립공원"},{"name":"가지산","peak":null,"height":1240.9,"region":"울산,경북,경남","lat":35.62111,"lng":129.00306,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"영남알프스의 주봉, 정상 일대 철쭉 군락으로 유명한 바위산"},{"name":"감악산","peak":null,"height":674.9,"region":"경기","lat":37.94333,"lng":126.97583,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"파주·양주·연천에 걸친 경기 북부의 바위산, 출렁다리 명소"},{"name":"강천산","peak":null,"height":583.7,"region":"전북특별자치도,전남","lat":35.40192,"lng":127.04838,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"군립공원 제1호, 구름다리와 단풍으로 유명한 호남의 명산"},{"name":"계룡산","peak":"천황봉","height":846.5,"region":"대전,충남","lat":36.34333,"lng":127.20611,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"천황봉 등 다섯 봉우리와 사찰이 어우러진 계룡산국립공원"},{"name":"계방산","peak":null,"height":1579.1,"region":"강원특별자치도","lat":37.72827,"lng":128.46548,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을","겨울"],"desc":"오대산 남쪽 백두대간의 고산, 운해와 주목 군락의 원시림"},{"name":"공작산","peak":null,"height":887.4,"region":"강원특별자치도","lat":37.71556,"lng":128.01,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"공작새 모양 암릉이 돋보이는 홍천의 명산"},{"name":"관악산","peak":"연주대","height":632.2,"region":"서울,경기","lat":37.44556,"lng":126.96361,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"서울 남쪽 대표 바위산, 연주대 전망과 서울대 입구가 유명"},{"name":"구병산","peak":null,"height":876.3,"region":"경북,충북","lat":36.46958,"lng":127.86175,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"아홉 폭 병풍바위 절경, '충북의 알프스'라 불리는 암릉 명산"},{"name":"금산","peak":null,"height":704.9,"region":"경남","lat":34.75611,"lng":127.97745,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"한려해상 바다 전망과 보리암이 어우러진 남해의 명산"},{"name":"금수산","peak":null,"height":1015.8,"region":"충북","lat":37.04486,"lng":128.21815,"national_park":true,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"단양팔경 배경의 명산, 단풍과 암릉이 아름다운 제천의 산"},{"name":"금오산","peak":null,"height":976.5,"region":"경북","lat":36.08806,"lng":128.30583,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"구미의 진산, 케이블카와 약사암이 있는 도립공원"},{"name":"금정산","peak":"고당봉","height":800.8,"region":"부산,경남","lat":35.28015,"lng":129.05062,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"부산의 진산, 금정산성과 고당봉 전망이 일품인 명산"},{"name":"깃대봉","peak":null,"height":360.7,"region":"전남","lat":34.6942,"lng":125.203,"coord_uncertain":true,"national_park":true,"top100":true,"difficulty":1,"difficulty_note":"추정치","season":["봄","가을"],"desc":"홍도 최고봉, 다도해해상국립공원의 바다 전망대"},{"name":"남산(경주)","peak":"금오봉","height":495.1,"region":"경북","lat":35.76806,"lng":129.22556,"coord_uncertain":true,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"신라 천년 고도의 노천박물관, 불상·탑이 가득한 역사의 산"},{"name":"내연산","peak":"향로봉","height":711.3,"region":"경북","lat":36.27868,"lng":129.28991,"national_park":false,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["봄","가을"],"desc":"보경사와 12폭포 품은 포항의 명산, 최고봉은 향로봉"},{"name":"내장산","peak":"신선봉","height":763.5,"region":"전북특별자치도","lat":35.47972,"lng":126.88806,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"단풍 터널과 내장사가 어우러진 호남의 대표 단풍 명산"},{"name":"대둔산","peak":"마천대","height":878.9,"region":"충남,전북특별자치도","lat":36.12459,"lng":127.32048,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["봄","가을"],"desc":"금강구름다리와 삼선계단이 명물인 충청·호남 경계 명산"},{"name":"대암산","peak":null,"height":1312.6,"region":"강원특별자치도","lat":38.21111,"lng":128.135,"national_park":false,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["가을"],"desc":"용늪 고층습원을 품은 북방의 산, 원시림이 살아있는 생태보고"},{"name":"대야산","peak":null,"height":931.0,"region":"경북,충북","lat":36.66926,"lng":127.92948,"national_park":true,"top100":true,"difficulty":2,"difficulty_note":"추정치","season":["가을"],"desc":"속리산국립공원 내 용추계곡과 바위능선이 아름다운 명산"},{"name":"덕숭산","peak":null,"height":495.2,"region":"충남","lat":36.67155,"lng":126.6239,"national_park":false,"top100":true,"difficulty":1,"difficulty_note":"추정치","season":["봄","가을"],"desc":"수덕사 품은 예산의 명산, 덕숭산은 수덕산의 다른 이름"},{"name":"덕유산","peak":"향적봉","height":1614.2,"region":"전북특별자치도,경남","lat":35.86056,"lng":127.74639,"national_park":true,"top100":true,"difficulty":4,"difficulty_note":"추정치","season":["겨울","가을"],"desc":"향적봉 눈꽃·상고대 명소, 무주리조트 품은 덕유산국립공원"},{"name":"덕항산","peak":null,"height":1072.9,"region":"강원특별자치도","lat":37.33083,"lng":129.00972,"national_park":false,"top100":true,"difficulty":3,"difficulty_note":"추정치","season":["가을"],"desc":"삼척·태백 경계의 석회암 고산, 덕항산성 터가 남은 산"},{"coord_uncertain":true,"desc":"월악산국립공원에 속한 단양의 암릉 바위산","difficulty":3,"difficulty_note":"추정치","height":965.3,"lat":36.93,"lng":128.32,"name":"도락산","national_park":true,"peak":null,"region":"충북","season":["봄","가을"],"top100":true},{"desc":"북한산국립공원의 암릉 산, 자운봉에서 서울 조망","difficulty":2,"difficulty_note":"추정치","height":740.2,"lat":37.69854,"lng":127.01497,"name":"도봉산","national_park":true,"peak":"자운봉","region":"서울,경기","season":["봄","가을"],"top100":true},{"desc":"다도해해상국립공원의 해남 명산, 억새와 동백 명소","difficulty":2,"difficulty_note":"추정치","height":700,"lat":34.47033,"lng":126.63599,"name":"두륜산","national_park":true,"peak":"가련봉","region":"전남","season":["봄","가을"],"top100":true},{"desc":"동해·삼척의 깊은 산, 겨울 눈꽃 산행으로 유명","difficulty":4,"difficulty_note":"추정치","height":1357,"lat":37.26,"lng":129.1,"name":"두타산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을","겨울"],"top100":true},{"desc":"강화도 최고봉, 참성단과 서해 낙조가 유명한 산","difficulty":1,"difficulty_note":"추정치","height":472.1,"lat":37.6116,"lng":126.43483,"name":"마니산","national_park":false,"peak":null,"region":"인천","season":["봄","가을"],"top100":true},{"desc":"암마이·숫마이 두 봉우리, 봄 벚꽃과 타포니 지형","difficulty":2,"difficulty_note":"추정치","height":687.4,"lat":35.76222,"lng":127.40472,"name":"마이산","national_park":false,"peak":"숫마이산","region":"전북특별자치도","season":["봄"],"top100":true},{"desc":"포천·철원의 억새 명산, 가을 억새축제로 유명","difficulty":3,"difficulty_note":"추정치","height":922,"lat":38.10694,"lng":127.33778,"name":"명성산","national_park":false,"peak":null,"region":"강원특별자치도,경기","season":["가을"],"top100":true},{"desc":"가평 최고봉, 익근리 계곡과 단풍이 아름다운 산","difficulty":3,"difficulty_note":"추정치","height":1252.3,"lat":37.93278,"lng":127.43083,"name":"명지산","national_park":false,"peak":null,"region":"경기","season":["가을","겨울"],"top100":true},{"desc":"김제·전주·완주의 진산, 금산사와 진달래로 유명","difficulty":2,"difficulty_note":"추정치","height":795.2,"lat":35.72917,"lng":127.08528,"name":"모악산","national_park":false,"peak":null,"region":"전북특별자치도","season":["봄"],"top100":true},{"desc":"광주 진산 국립공원, 가을 억새와 주상절리 명산","difficulty":3,"difficulty_note":"추정치","height":1186.8,"lat":35.1392,"lng":126.9925,"name":"무등산","national_park":true,"peak":"천왕봉","region":"광주,전남","season":["가을"],"top100":true},{"desc":"창원 도심 속 명산, 봄 진달래 군락이 장관","difficulty":2,"difficulty_note":"추정치","height":761.4,"lat":35.21011,"lng":128.53551,"name":"무학산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"coord_uncertain":true,"desc":"통영 미륵도의 케이블카 산, 한려수도 조망 명소","difficulty":1,"difficulty_note":"추정치","height":458.4,"lat":34.806,"lng":128.389,"name":"미륵산","national_park":true,"peak":null,"region":"경남","season":["봄","가을"],"top100":true},{"coord_uncertain":true,"desc":"삼도 경계의 백두대간 명산, 겨울 눈꽃 능선이 장관","difficulty":4,"difficulty_note":"추정치","height":1241.7,"lat":36.04,"lng":127.85,"name":"민주지산","national_park":false,"peak":null,"region":"충북,전북특별자치도,경북","season":["겨울"],"top100":true},{"desc":"장성·고창 경계 산, 방장굴과 가을 단풍 명소","difficulty":2,"difficulty_note":"추정치","height":733.6,"lat":35.44778,"lng":126.76,"name":"방장산","national_park":false,"peak":null,"region":"전남,전북특별자치도","season":["가을"],"top100":true},{"desc":"인제·홍천의 오지 산, 주걱봉 단풍과 원시림","difficulty":4,"difficulty_note":"추정치","height":1445.7,"lat":37.89472,"lng":128.35556,"name":"방태산","national_park":false,"peak":"주걱봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"평창·횡성·영월 경계 1350m 고산, 원시림 산행","difficulty":4,"difficulty_note":"추정치","height":1350.1,"lat":37.39667,"lng":128.29333,"name":"백덕산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"내장산국립공원 남부, 백양사 단풍과 상왕봉 암릉","difficulty":2,"difficulty_note":"추정치","height":741.2,"lat":35.42,"lng":126.89,"name":"백암산","national_park":true,"peak":"상왕봉","region":"전북특별자치도,전남","season":["봄","가을"],"top100":true},{"desc":"광양의 명산, 백운계곡과 4대 계곡의 단풍 산행","difficulty":4,"difficulty_note":"추정치","height":1222.2,"lat":35.10639,"lng":127.62167,"name":"백운산(광양)","national_park":false,"peak":null,"region":"전남","season":["가을"],"top100":true},{"desc":"정선·평창 경계 산, 동강과 어우러진 조망 명소","difficulty":3,"difficulty_note":"추정치","height":883.5,"lat":37.29917,"lng":128.58,"name":"백운산(정선)","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"포천·화천 경계, 백운계곡과 기암괴석의 산","difficulty":3,"difficulty_note":"추정치","height":903,"lat":38.07472,"lng":127.44417,"name":"백운산(포천)","national_park":false,"peak":null,"region":"경기,강원특별자치도","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"변산반도국립공원의 해안 산, 채석강·적벽강 조망","difficulty":1,"difficulty_note":"추정치","height":459,"lat":35.68083,"lng":126.53139,"name":"변산","national_park":true,"peak":"쌍선봉","region":"전북특별자치도","season":["여름"],"top100":true},{"desc":"수도권 대표 국립공원, 백운대·인수봉 암릉 산행","difficulty":2,"difficulty_note":"추정치","height":835.6,"lat":37.6608,"lng":126.9933,"name":"북한산","national_park":true,"peak":"백운대","region":"서울,경기","season":["가을"],"top100":true},{"desc":"대구 달성의 명산, 봄 참꽃과 대견사 암괴류","difficulty":3,"difficulty_note":"추정치","height":1083.4,"lat":35.71667,"lng":128.52444,"name":"비슬산","national_park":false,"peak":"천왕봉","region":"대구,경북","season":["봄"],"top100":true},{"desc":"춘천 의암호 옆 암릉 산, 용화봉·등선봉 삼봉","difficulty":2,"difficulty_note":"추정치","height":655.8,"lat":37.83861,"lng":127.66389,"name":"삼악산","national_park":false,"peak":"용화봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"금산·옥천 경계 산, 서대폭포와 가을 단풍 명소","difficulty":3,"difficulty_note":"추정치","height":904.1,"lat":36.22066,"lng":127.53837,"name":"서대산","national_park":false,"peak":null,"region":"충남,충북","season":["가을"],"top100":true},{"desc":"호남의 내금강, 동백꽃·단풍·도솔계곡이 아름다운 도립공원 명산","difficulty":1,"difficulty_note":"추정치","height":334.7,"lat":35.50806,"lng":126.57111,"name":"선운산","national_park":false,"peak":null,"region":"전북특별자치도","season":["봄","가을"],"top100":true},{"desc":"한반도 3대 명산, 대청봉·공룡능선·단풍으로 유명한 국립공원","difficulty":5,"difficulty_note":"추정치","height":1708.1,"lat":38.11944,"lng":128.46556,"name":"설악산","national_park":true,"peak":"대청봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"울릉도 최고봉, 원시림과 독도 조망의 화산섬 명산","difficulty":3,"difficulty_note":"추정치","height":986.5,"lat":37.50333,"lng":130.86611,"name":"성인봉","national_park":false,"peak":null,"region":"경북","season":["여름","가을"],"top100":true},{"desc":"봄 철쭉·겨울 눈꽃이 아름다운 백두대간의 국립공원","difficulty":4,"difficulty_note":"추정치","height":1439.7,"lat":36.96,"lng":128.48472,"name":"소백산","national_park":true,"peak":"비로봉","region":"경북,충북","season":["봄","가을"],"top100":true},{"desc":"경기의 소금강, 단풍과 자재암으로 유명한 수도권 명산","difficulty":2,"difficulty_note":"추정치","height":587.5,"lat":37.94194,"lng":127.08889,"name":"소요산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"법주사와 문장대·천왕봉이 어우러진 불교 명산 국립공원","difficulty":3,"difficulty_note":"추정치","height":1058.4,"lat":36.53333,"lng":127.9,"name":"속리산","national_park":true,"peak":"천왕봉","region":"경북,충북","season":["가을"],"top100":true},{"desc":"영남알프스의 억새 평원과 공룡능선이 장관인 명산","difficulty":3,"difficulty_note":"추정치","height":1159.3,"lat":35.54,"lng":129.056,"name":"신불산","national_park":false,"peak":null,"region":"울산","season":["가을"],"top100":true},{"desc":"연꽃 형상의 봉우리들과 옥천사가 있는 고성 도립공원","difficulty":2,"difficulty_note":"추정치","height":524,"lat":35.0708,"lng":128.265,"name":"연화산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"desc":"월정사·상원사와 겨울 눈꽃으로 유명한 불교 국립공원","difficulty":4,"difficulty_note":"추정치","height":1565.4,"lat":37.79806,"lng":128.54306,"name":"오대산","national_park":true,"peak":"비로봉","region":"강원특별자치도","season":["겨울"],"top100":true},{"desc":"다섯 봉우리가 솟아 춘천호를 굽어보는 강원 명산","difficulty":2,"difficulty_note":"추정치","height":777.9,"lat":38.00083,"lng":127.80611,"name":"오봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"경기의 금강산, 가섭봉 암릉과 천년 은행나무의 명산","difficulty":3,"difficulty_note":"추정치","height":1157.1,"lat":37.5622,"lng":127.552,"name":"용문산","national_park":false,"peak":"가섭봉","region":"경기","season":["가을"],"top100":true},{"desc":"화천·춘천 경계의 한적한 산행 명소","difficulty":2,"difficulty_note":"추정치","height":877.8,"lat":38.03722,"lng":127.75306,"name":"용화산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"영남알프스 중심, 운문사와 억새가 아름다운 명산","difficulty":3,"difficulty_note":"추정치","height":1195.1,"lat":35.67639,"lng":129.03417,"name":"운문산","national_park":false,"peak":null,"region":"경북,경남","season":["봄","가을"],"top100":true},{"desc":"경기 5악 중 으뜸, 기암괴봉의 소금강","difficulty":3,"difficulty_note":"추정치","height":934.7,"lat":37.87806,"lng":127.325,"name":"운악산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"호남 노령산맥 최고봉, 오색 단풍의 명산","difficulty":3,"difficulty_note":"추정치","height":1125.8,"lat":35.91083,"lng":127.35722,"name":"운장산","national_park":false,"peak":"운장대","region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"충주호를 품은 영봉의 국립공원 명산","difficulty":3,"difficulty_note":"추정치","height":1095.3,"lat":36.8858,"lng":128.106,"name":"월악산","national_park":true,"peak":"영봉","region":"충북","season":["가을"],"top100":true},{"desc":"달 뜨는 산, 천황봉 기암절벽의 호남 국립공원","difficulty":2,"difficulty_note":"추정치","height":810.7,"lat":34.76778,"lng":126.70444,"name":"월출산","national_park":true,"peak":"천황봉","region":"전남","season":["봄","가을"],"top100":true},{"desc":"국내 최초 자연휴양림이 있는 경기 가평·양평의 명산","difficulty":2,"difficulty_note":"추정치","height":864,"lat":37.57639,"lng":127.4875,"name":"유명산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"삼척·울진 경계 백두대간의 한적한 명산","difficulty":3,"difficulty_note":"추정치","height":999.7,"lat":37.07639,"lng":129.23083,"name":"응봉산","national_park":false,"peak":null,"region":"강원특별자치도,경북","season":["가을"],"top100":true},{"desc":"장수군의 진산, 백두대간 팔대종산의 명산","difficulty":3,"difficulty_note":"추정치","height":1237.4,"lat":35.63,"lng":127.59583,"name":"장안산","national_park":false,"peak":null,"region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"천황산과 어우러진 영남알프스의 억새 명산","difficulty":3,"difficulty_note":"추정치","height":1119.1,"lat":35.54667,"lng":128.98056,"name":"재약산","national_park":false,"peak":"수미봉","region":"경남,울산","season":["가을"],"top100":true},{"desc":"덕유산국립공원의 붉은 바위 지대와 안국사가 있는 명산","difficulty":3,"difficulty_note":"추정치","height":1030.6,"lat":35.94778,"lng":127.69111,"name":"적상산","national_park":true,"peak":null,"region":"전북특별자치도","season":["가을"],"top100":true},{"desc":"남설악의 곰배령·단풍으로 유명한 생태 명산","difficulty":4,"difficulty_note":"추정치","height":1426,"lat":38.04917,"lng":128.4275,"name":"점봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"송광사와 봄 벚꽃·가을 단풍이 아름다운 순천 도립공원","difficulty":2,"difficulty_note":"추정치","height":887.3,"lat":35.0025,"lng":127.31361,"name":"조계산","national_park":false,"peak":null,"region":"전남","season":["봄","가을"],"top100":true},{"desc":"기암절벽과 대전사 계곡이 어우러진 청송 국립공원","difficulty":2,"difficulty_note":"추정치","height":722.1,"lat":36.38922,"lng":127.16259,"name":"주왕산","national_park":true,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경새재 옛길을 품은 명산으로 가을 단풍과 조령관문이 장관인 산","difficulty":3,"difficulty_note":"추정치","height":1108.4,"lat":36.7885,"lng":128.1013,"name":"주흘산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"천왕봉을 정점으로 한반도 남부의 거대한 산군. 종주 산행의 성지","difficulty":5,"difficulty_note":"추정치","height":1915.4,"lat":35.33778,"lng":127.73056,"name":"지리산","national_park":true,"peak":"천왕봉","region":"전북특별자치도,전남,경남","season":["가을"],"top100":true},{"coord_uncertain":true,"desc":"사량도 상도에 솟은 섬 산. 다도해 조망이 뛰어난 한려해상의 보석","difficulty":1,"difficulty_note":"추정치","height":399.3,"lat":34.8182,"lng":128.2329,"name":"지리산(사량도)","national_park":true,"peak":null,"region":"경남","season":["봄","가을"],"top100":true},{"desc":"기암괴석 능선과 억새 평전이 장관인 남도의 명산, 호남 5대 명산","difficulty":2,"difficulty_note":"추정치","height":724.3,"lat":34.53222,"lng":126.91583,"name":"천관산","national_park":false,"peak":"연대봉","region":"전남","season":["가을"],"top100":true},{"desc":"남양주 근교의 대표 산행지. 수도권 당일 산행으로 인기 높은 산","difficulty":2,"difficulty_note":"추정치","height":810.3,"lat":37.68056,"lng":127.27278,"name":"천마산","national_park":false,"peak":null,"region":"경기","season":["봄","가을"],"top100":true},{"desc":"원효봉 정상의 화엄늪과 진달래·억새가 아름다운 영남알프스의 명산","difficulty":3,"difficulty_note":"추정치","height":920.2,"lat":35.42028,"lng":129.11222,"name":"천성산","national_park":false,"peak":"원효봉","region":"경남","season":["봄","가을"],"top100":true},{"desc":"영동과 금산 경계의 완만한 산. 가족 산행에 좋은 충청의 명산","difficulty":2,"difficulty_note":"추정치","height":715.2,"lat":36.15889,"lng":127.6,"name":"천태산","national_park":false,"peak":null,"region":"충북,충남","season":["봄","가을"],"top100":true},{"desc":"장인봉 일대 기암절벽과 청량사·김생굴이 어우러진 경북의 명산","difficulty":2,"difficulty_note":"추정치","height":869.7,"lat":36.79139,"lng":128.92694,"name":"청량산","national_park":false,"peak":"장인봉","region":"경북","season":["봄","가을"],"top100":true},{"desc":"담양과 순창 경계의 가을 단풍 명소. 호남의 아담한 명산","difficulty":2,"difficulty_note":"추정치","height":731.2,"lat":35.39917,"lng":126.97556,"name":"추월산","national_park":false,"peak":null,"region":"전남,전북특별자치도","season":["가을"],"top100":true},{"desc":"남양주·가평의 울창한 산림욕장. 수도권 근교 산행의 명소","difficulty":2,"difficulty_note":"추정치","height":887.1,"lat":37.75278,"lng":127.33306,"name":"축령산","national_park":false,"peak":null,"region":"경기","season":["가을"],"top100":true},{"desc":"비로봉 정상의 조망과 구룡사 계곡이 아름다운 원주의 진산","difficulty":4,"difficulty_note":"추정치","height":1282,"lat":37.37167,"lng":128.05056,"name":"치악산","national_park":true,"peak":"비로봉","region":"강원특별자치도","season":["가을"],"top100":true},{"desc":"청양의 알프스라 불리는 충남의 명산. 칠갑산 장승문화제의 고장","difficulty":2,"difficulty_note":"추정치","height":559.7,"lat":36.41333,"lng":126.88417,"name":"칠갑산","national_park":false,"peak":null,"region":"충남","season":["봄","가을"],"top100":true},{"desc":"장군봉·문수봉의 주목 군락과 겨울 눈꽃이 장관인 민족의 영산","difficulty":4,"difficulty_note":"추정치","height":1566.7,"lat":37.09583,"lng":128.91528,"name":"태백산","national_park":true,"peak":"장군봉","region":"강원특별자치도,경북","season":["겨울"],"top100":true},{"desc":"영월과 단양 경계의 고원 산. 단풍과 억새가 아름다운 강원 남부의 명산","difficulty":3,"difficulty_note":"추정치","height":1027.5,"lat":37.11759,"lng":128.48538,"name":"태화산","national_park":false,"peak":null,"region":"강원특별자치도,충북","season":["가을"],"top100":true},{"desc":"비로봉·동봉·서봉의 세 봉우리와 갓바위가 유명한 대구의 진산","difficulty":3,"difficulty_note":"추정치","height":1192.3,"lat":36.01694,"lng":128.695,"name":"팔공산","national_park":true,"peak":"비로봉","region":"대구,경북","season":["가을"],"top100":true},{"desc":"홍천강을 굽어보는 여덟 봉우리. 가벼운 당일 산행에 좋은 산","difficulty":1,"difficulty_note":"추정치","height":328.2,"lat":37.69596,"lng":127.69669,"name":"팔봉산","national_park":false,"peak":null,"region":"강원특별자치도","season":["봄","가을"],"top100":true},{"desc":"여덟 봉우리의 바위산. 다도해 조망이 뛰어난 고흥의 명산","difficulty":2,"difficulty_note":"추정치","height":606.9,"lat":34.61606,"lng":127.43573,"name":"팔영산","national_park":true,"peak":null,"region":"전남","season":["가을"],"top100":true},{"desc":"백록담을 품은 남한 최고봉. 사계절 절경의 제주 화산","difficulty":5,"difficulty_note":"추정치","height":1947.3,"lat":33.36167,"lng":126.52917,"name":"한라산","national_park":true,"peak":"백록담","region":"제주특별자치도","season":["겨울"],"top100":true},{"desc":"경기 북부의 최고봉. 중봉 일대 원시림이 잘 보존된 깊은 산","difficulty":4,"difficulty_note":"추정치","height":1468.3,"lat":37.995,"lng":127.50306,"name":"화악산","national_park":false,"peak":null,"region":"경기,강원특별자치도","season":["가을"],"top100":true},{"desc":"가을 억새 평원과 화왕산성이 어우러진 창녕의 명산","difficulty":2,"difficulty_note":"추정치","height":757.7,"lat":35.54778,"lng":128.53278,"name":"화왕산","national_park":false,"peak":null,"region":"경남","season":["가을"],"top100":true},{"desc":"봄 철쭉 군락과 억새 평원이 장관인 합천·산청의 명산","difficulty":3,"difficulty_note":"추정치","height":1113.1,"lat":35.51877,"lng":127.95951,"name":"황매산","national_park":false,"peak":null,"region":"경남","season":["봄"],"top100":true},{"coord_uncertain":true,"desc":"황석산성을 품은 험준한 산. 임진왜란 격전지였던 함양의 명산","difficulty":3,"difficulty_note":"추정치","height":1192.5,"lat":35.65083,"lng":127.75139,"name":"황석산","national_park":false,"peak":null,"region":"경남","season":["가을"],"top100":true},{"desc":"직지사와 직지사 계곡을 품은 김천의 명산. 가을 단풍이 아름다움","difficulty":3,"difficulty_note":"추정치","height":1111.4,"lat":36.11805,"lng":127.9668,"name":"황악산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경 동로면의 깊은 산. 황장목 산지였던 울창한 원시림의 산","difficulty":3,"difficulty_note":"추정치","height":1078.9,"lat":36.81274,"lng":128.27818,"name":"황장산","national_park":false,"peak":null,"region":"경북","season":["가을"],"top100":true},{"desc":"문경과 괴산 경계의 바위산. 은폭동 계곡과 기암이 아름다운 산","difficulty":3,"difficulty_note":"추정치","height":996.4,"lat":36.716,"lng":128.005,"name":"희양산","national_park":false,"peak":null,"region":"경북,충북","season":["가을"],"top100":true}];
+// ★★★ Supabase 설정 (https://supabase.com → 프로젝트 → Project Settings)
+// 기록을 서버에 저장하려면 아래 두 값을 입력하세요. Publishable key는 브라우저 공개용이라 괜찮습니다 (Secret key 절대 금지).
+const SUPABASE_URL = "여기에_SUPABASE_URL_입력";         // 예: https://xxx.supabase.co
+const SUPABASE_ANON_KEY = "여기에_SUPABASE_ANON_KEY_입력"; // Publishable key (sb_publishable_...)
+
 /* ===== 유틸 ===== */
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
@@ -329,10 +337,63 @@ function toggleSummit(n){
 }
 function refreshSummitUI(){buildMarkers();renderProgress();if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
 
+/* ===== Supabase 서버 동기화 ===== */
+const LS_DEVICE="mtapp_device";
+function deviceId(){let id=null;try{id=localStorage.getItem(LS_DEVICE);}catch(e){}
+  if(!id){id="d"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    try{localStorage.setItem(LS_DEVICE,id);}catch(e){}}return id;}
+// 키 미입력 시 sb=null → 로컬 모드로만 동작
+const SB_OK=SUPABASE_URL.indexOf("https://")===0&&SUPABASE_ANON_KEY.indexOf("여기에_")!==0;
+let sb=null;
+if(SB_OK&&window.supabase){try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);}catch(e){sb=null;}}
+function stripSrv(r){const c=Object.assign({},r);delete c._srv;return c;}
+function recToRow(r){return{id:r.id,device_id:deviceId(),name:r.name,date:new Date(r.date).toISOString(),
+  mountain:r.mountain,memo:r.memo,distance:r.distance,duration:r.duration,gain:r.gain,
+  points:r.points,updated_at:new Date().toISOString()};}
+function rowToRec(w){return{id:w.id,name:w.name,date:new Date(w.date).getTime(),mountain:w.mountain,
+  memo:w.memo||"",distance:w.distance||0,duration:w.duration||0,gain:w.gain||0,points:w.points||[]};}
+// 저장/삭제 시 서버에 반영 (실패해도 로컬 기록은 유지)
+async function sbUpsert(r){
+  if(!sb)return;
+  try{const{error}=await sb.from("hiking_records").upsert(recToRow(r),{onConflict:"id"});
+    if(error)toast("서버 동기화 실패: "+error.message);}
+  catch(e){toast("서버 동기화 실패 (네트워크 오류)");}
+}
+async function sbDelete(id){
+  if(!sb)return;
+  try{await sb.from("hiking_records").delete().eq("id",id);}catch(e){}
+}
+// 시작 시 서버 기록을 불러와 로컬과 합침 (서버 updated_at이 더 새로우면 서버 버전 우선)
+async function sbPull(){
+  if(!sb)return;
+  try{
+    const{data,error}=await sb.from("hiking_records").select("*").order("date",{ascending:false}).limit(500);
+    if(error||!data||!data.length)return;
+    const merged=new Map(records.map(r=>[r.id,r]));
+    let changed=false;
+    data.forEach(w=>{
+      const r=rowToRec(w),old=merged.get(r.id);
+      const wT=w.updated_at?new Date(w.updated_at).getTime():0;
+      const oT=old?(old._srv||0):0;
+      if(!old||wT>oT){
+        r._srv=wT;merged.set(r.id,r);
+        const oldJson=old?JSON.stringify(stripSrv(old)):null;
+        if(JSON.stringify(stripSrv(r))!==oldJson)changed=true;
+      }
+    });
+    if(changed){
+      records=Array.from(merged.values()).sort((a,b)=>b.date-a.date);
+      saveRecords();
+      if($("#tab-record")&&$("#tab-record").classList.contains("active"))renderRecords();
+      toast("서버에서 최신 기록을 불러왔어요.");
+    }
+  }catch(e){/* 오프라인이면 무시 */}
+}
+
 /* ===== 지역(시도) 목록 ===== */
 const SIDO_ORDER=["서울","경기","인천","강원특별자치도","충북","충남","대전","세종","전북특별자치도","전남","광주","경북","경남","대구","울산","부산","제주특별자치도"];
 const SIDO_MAP={"서울":"서울특별시","경기":"경기도","인천":"인천광역시","강원특별자치도":"강원특별자치도","충북":"충청북도","충남":"충청남도","대전":"대전광역시","세종":"세종특별자치시","전북특별자치도":"전북특별자치도","전남":"전라남도","광주":"광주광역시","경북":"경상북도","경남":"경상남도","대구":"대구광역시","울산":"울산광역시","부산":"부산광역시","제주특별자치도":"제주특별자치도"};
-function mountainSidos(m){return m.region.split(",").map(r=>r.trim());}
+function mountainSidos(m){return m.r.split(",").map(r=>r.trim());}
 function allSidos(){const s=new Set();MOUNTAINS.forEach(m=>mountainSidos(m).forEach(x=>s.add(x)));
   return SIDO_ORDER.filter(x=>s.has(x)).concat([...s].filter(x=>!SIDO_ORDER.includes(x)));}
 
@@ -343,10 +404,10 @@ let markers=[]; // {m, marker}
 function badgeImage(m){
   const done=isSummited(m.name);
   const lvl=mapReady?map.getLevel():13;
-  const raw=lvl<=10?Math.round(m.height)+"m":m.name; // 줌인(레벨↓)일수록 표고, 줌아웃이면 산 이름
+  const raw=lvl<=10?Math.round(m.h)+"m":m.name; // 줌인(레벨↓)일수록 표고, 줌아웃이면 산 이름
   const label=String(raw).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const bg=done?"#ffa000":(m.national_park?"#1b5e20":"#43a047");
-  const bd=done?"#e65100":(m.national_park?"#0d3b12":"#ffffff");
+  const bg=done?"#ffa000":(m.np?"#1b5e20":"#43a047");
+  const bd=done?"#e65100":(m.np?"#0d3b12":"#ffffff");
   let w=20;
   for(const ch of String(raw)){w+=/[가-힣]/.test(ch)?13:7;}
   if(done)w+=16;
@@ -421,10 +482,11 @@ let filtered=MOUNTAINS.slice();
 function applyFilters(){
   filtered=MOUNTAINS.filter(m=>{
     if(filters.cat==="top100"&&!m.top100)return false;
-    if(filters.cat==="np"&&!m.national_park)return false;
-    if(filters.cat==="easy"&&m.difficulty>2)return false;
+    if(filters.cat==="np"&&!m.np)return false;
+    if(filters.cat==="pp"&&!m.pp)return false;
+    if(filters.cat==="easy"&&m.df>2)return false;
     if(filters.region&&!mountainSidos(m).includes(filters.region))return false;
-    if(filters.season&&!m.season.includes(filters.season))return false;
+    if(filters.season&&!m.s.includes(filters.season))return false;
     return true;
   });
   buildMarkers();renderSheetList();updateSummary();
@@ -466,7 +528,7 @@ $("#searchInput").addEventListener("input",e=>{
   if(!q){drop.classList.add("hidden");return;}
   const res=MOUNTAINS.filter(m=>m.name.includes(q)).slice(0,8);
   if(!res.length){drop.innerHTML='<div class="sr-item"><span class="n">검색 결과 없음</span></div>';drop.classList.remove("hidden");return;}
-  drop.innerHTML=res.map(m=>'<div class="sr-item" data-nm="'+esc(m.name)+'"><span><span class="n">'+esc(m.name)+'</span><span class="r">'+esc(m.region)+'</span></span><span class="h">'+Math.round(m.height)+'m</span></div>').join("");
+  drop.innerHTML=res.map(m=>'<div class="sr-item" data-nm="'+esc(m.name)+'"><span><span class="n">'+esc(m.name)+'</span><span class="r">'+esc(m.r)+'</span></span><span class="h">'+Math.round(m.h)+'m</span></div>').join("");
   drop.classList.remove("hidden");
   drop.querySelectorAll(".sr-item[data-nm]").forEach(el=>el.addEventListener("click",ev=>{
     ev.stopPropagation();
@@ -505,14 +567,15 @@ function updateSummary(){
 }
 function diffbar(d){let h="";for(let i=1;i<=5;i++)h+='<i class="'+(i<=d?"on":"")+'"></i>';return '<span class="diffbar">'+h+"</span>";}
 function cardHTML(m){
-  return '<div class="mcard" data-nm="'+esc(m.name)+'"><div class="t"><span class="nm">'+esc(m.name)+'</span><span class="hg">'+Math.round(m.height)+'m</span></div>'
-    +'<div class="rg">'+esc(m.region)+(m.peak?" · "+esc(m.peak):"")+' · 난이도'+diffbar(m.difficulty)+'</div>'
-    +'<div class="ds">'+esc(m.desc)+'</div>'
+  return '<div class="mcard" data-nm="'+esc(m.name)+'"><div class="t"><span class="nm">'+esc(m.name)+'</span><span class="hg">'+Math.round(m.h)+'m</span></div>'
+    +'<div class="rg">'+esc(m.r)+(m.peak?" · "+esc(m.peak):"")+' · 난이도'+diffbar(m.df)+'</div>'
+    +'<div class="ds">'+esc(m.d)+'</div>'
     +'<div class="badges">'
     +(m.top100?'<span class="bdg top100">100대명산</span>':"")
-    +(m.national_park?'<span class="bdg np">국립공원</span>':"")
+    +(m.np?'<span class="bdg np">국립공원</span>':"")
+    +(m.pp?'<span class="bdg pp">도립공원</span>':"")
     +(isSummited(m.name)?'<span class="bdg done">✓ 등정 완료</span>':"")
-    +m.season.map(s=>'<span class="bdg season">'+s+'</span>').join("")
+    +m.s.map(s=>'<span class="bdg season">'+s+'</span>').join("")
     +"</div></div>";
 }
 function renderSheetList(){
@@ -531,14 +594,15 @@ function renderDetail(m,expand){
   $("#sheetBody").innerHTML=
     '<button id="detailBack">‹ 목록으로</button>'
     +'<div class="d-title">'+esc(m.name)+'</div>'
-    +'<div class="d-meta">표고 '+Math.round(m.height)+'m · '+esc(m.region)+(m.peak?'<br>주봉: '+esc(m.peak):"")+'<br>난이도'+diffbar(m.difficulty)+'<span style="font-size:12px;color:#9e9e9e"> (추정치)</span></div>'
+    +'<div class="d-meta">표고 '+Math.round(m.h)+'m · '+esc(m.r)+(m.peak?'<br>주봉: '+esc(m.peak):"")+'<br>난이도'+diffbar(m.df)+'<span style="font-size:12px;color:#9e9e9e"> (추정치)</span></div>'
     +'<div class="badges">'
     +(m.top100?'<span class="bdg top100">100대명산</span>':"")
-    +(m.national_park?'<span class="bdg np">국립공원</span>':"")
+    +(m.np?'<span class="bdg np">국립공원</span>':"")
+    +(m.pp?'<span class="bdg pp">도립공원</span>':"")
     +(done?'<span class="bdg done">✓ 등정 완료</span>':"")
-    +m.season.map(s=>'<span class="bdg season">'+s+' 추천</span>').join("")
+    +m.s.map(s=>'<span class="bdg season">'+s+' 추천</span>').join("")
     +"</div>"
-    +'<div class="d-desc">'+esc(m.desc)+"</div>"
+    +'<div class="d-desc">'+esc(m.d)+"</div>"
     +'<div class="d-btns">'
     +'<button class="btn '+(done?"done-on":"ghost")+'" id="btnSummit">'+(done?"✓ 등정 완료 (해제)":"등정 완료 체크")+'</button>'
     +'<button class="btn primary" id="btnTrackHere">이 산으로 GPS 기록 시작</button>'
@@ -575,9 +639,9 @@ $("#btnRecommend").addEventListener("click",()=>{
   const rg=$("#recRegion").value, df=$("#recDiff").value, unv=$("#recUnvisited").checked;
   const pool=MOUNTAINS.filter(m=>{
     if(rg&&!mountainSidos(m).includes(rg))return false;
-    if(df==="easy"&&m.difficulty>2)return false;
-    if(df==="mid"&&m.difficulty!==3)return false;
-    if(df==="hard"&&m.difficulty<4)return false;
+    if(df==="easy"&&m.df>2)return false;
+    if(df==="mid"&&m.df!==3)return false;
+    if(df==="hard"&&m.df<4)return false;
     if(unv&&isSummited(m.name))return false;
     return true;
   });
@@ -585,14 +649,14 @@ $("#btnRecommend").addEventListener("click",()=>{
   if(!pool.length){box.innerHTML='<div class="empty" style="padding:20px">조건에 맞는 산이 없어요.<br>조건을 바꿔 보세요.</div>';return;}
   const m=pool[Math.floor(Math.random()*pool.length)];
   box.innerHTML='<div class="big-card"><div class="bn">⛰ '+esc(m.name)+'</div>'
-    +'<div class="bi">'+Math.round(m.height)+'m · '+esc(m.region)+'<br>'+esc(m.desc)+'</div>'
+    +'<div class="bi">'+Math.round(m.h)+'m · '+esc(m.r)+'<br>'+esc(m.d)+'</div>'
     +'<button class="btn" id="btnGoMap">지도에서 보기</button></div>';
   $("#btnGoMap").addEventListener("click",()=>{switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);});
 });
 function renderSeasonCards(){
   const s=curSeason();
-  const list=MOUNTAINS.filter(m=>m.season.includes(s)).slice(0,20);
-  $("#seasonCards").innerHTML=list.map(m=>'<div class="hcard" data-nm="'+esc(m.name)+'"><div class="n">'+esc(m.name)+'</div><div class="h">'+Math.round(m.height)+'m</div><div class="r">'+esc(m.region.split(",")[0])+'</div></div>').join("");
+  const list=MOUNTAINS.filter(m=>m.s.includes(s)).slice(0,20);
+  $("#seasonCards").innerHTML=list.map(m=>'<div class="hcard" data-nm="'+esc(m.name)+'"><div class="n">'+esc(m.name)+'</div><div class="h">'+Math.round(m.h)+'m</div><div class="r">'+esc(m.r.split(",")[0])+'</div></div>').join("");
   $$("#seasonCards .hcard").forEach(c=>c.addEventListener("click",()=>{
     const m=MOUNTAINS.find(x=>x.name===c.dataset.nm);
     switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);
@@ -686,7 +750,7 @@ function openSaveDialog(){
   $("#saveSummary").textContent="거리 "+fmtDist(tr.dist)+" · 시간 "+fmtDur(tr.activeMs/1000)+" · 상승 "+Math.round(tr.gain)+"m · 포인트 "+tr.points.length+"개";
   const sel=$("#saveMountain");sel.innerHTML='<option value="">산 선택 안 함</option>';
   MOUNTAINS.slice().sort((a,b)=>a.name.localeCompare(b.name,"ko")).forEach(m=>{
-    const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.height)+"m)";
+    const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.h)+"m)";
     if(tr.mountain===m.name)o.selected=true;sel.appendChild(o);
   });
   $("#saveModal").classList.remove("hidden");
@@ -697,7 +761,7 @@ $("#btnSave").addEventListener("click",()=>{
   const mt=$("#saveMountain").value||null;
   const rec={id:"r"+Date.now(),name:name,date:Date.now(),mountain:mt,memo:$("#saveMemo").value.trim(),
     distance:Math.round(tr.dist),duration:Math.round(tr.activeMs/1000),gain:Math.round(tr.gain),points:tr.points};
-  records.unshift(rec);saveRecords();
+  records.unshift(rec);saveRecords();sbUpsert(rec);
   if(mt&&!isSummited(mt)){summits.push(mt);saveSummits();toast("저장됐어요 🎉 "+mt+" 등정 완료!");}
   else toast("기록을 저장했어요.");
   $("#saveModal").classList.add("hidden");cleanupTrack();
@@ -719,7 +783,7 @@ function renderRecords(){
     card.querySelector(".view").addEventListener("click",e=>{e.stopPropagation();viewRecord(r);});
     card.querySelector(".gpx").addEventListener("click",e=>{e.stopPropagation();downloadGPX(r);});
     card.querySelector(".del").addEventListener("click",e=>{e.stopPropagation();
-      if(confirm("이 기록을 삭제할까요?")){records=records.filter(x=>x.id!==r.id);saveRecords();renderRecords();toast("기록을 삭제했어요.");}});
+      if(confirm("이 기록을 삭제할까요?")){records=records.filter(x=>x.id!==r.id);saveRecords();sbDelete(r.id);renderRecords();toast("기록을 삭제했어요.");}});
     card.addEventListener("click",()=>viewRecord(r));
   });
 }
@@ -742,7 +806,7 @@ function viewRecord(r){
     +'<div class="d-btns"><button class="btn ghost" id="recGpx">GPX 저장</button><button class="btn warn" id="recDel">삭제</button></div>';
   $("#recGpx").addEventListener("click",()=>downloadGPX(r));
   $("#recDel").addEventListener("click",()=>{if(confirm("이 기록을 삭제할까요?")){
-    records=records.filter(x=>x.id!==r.id);saveRecords();renderRecords();
+    records=records.filter(x=>x.id!==r.id);saveRecords();sbDelete(r.id);renderRecords();
     if(recordLine){recordLine.setMap(null);recordLine=null;}renderSheetList();toast("기록을 삭제했어요.");}});
   setSheet(true);
 }
@@ -766,6 +830,7 @@ function downloadGPX(r){
 buildRegionPanel();
 applyFilters();
 renderProgress();
+sbPull(); // 서버 기록 불러와 합치기 (키 입력된 경우만)
 </script>
 </body>
 </html>
