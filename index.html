@@ -92,6 +92,8 @@ button{font-family:inherit;cursor:pointer}
 #sheet.collapsed{height:64px}
 #sheet.expanded{height:72%}
 #sheet.expanded.fit{height:auto;max-height:72%}
+#sheet.peek{height:33.3vh}
+#sheet.peek #sheetBody{display:block}
 #sheet.expanded.fit #sheetBody{flex:1 1 auto;min-height:0;overflow-y:auto}
 #sheetHandle{padding:8px 0 2px;display:flex;justify-content:center;flex:0 0 auto;cursor:grab}
 #sheetHandle span{width:44px;height:5px;border-radius:3px;background:#cfcfcf}
@@ -987,7 +989,7 @@ $("#searchInput").addEventListener("input",e=>{
 
 /* ===== 바텀시트 ===== */
 const sheet=$("#sheet");let sheetMode="list", selMountain=null, selRecord=null;
-function setSheet(exp){sheet.classList.toggle("expanded",exp);sheet.classList.toggle("collapsed",!exp);
+function setSheet(exp){sheet.classList.remove("peek");sheet.classList.toggle("expanded",exp);sheet.classList.toggle("collapsed",!exp);
   if(exp)setTimeout(()=>{if(mapReady)map.relayout();},220);}
 $("#sheetHandle").addEventListener("click",()=>{if(suppressSheetClick)return;setSheet(!sheet.classList.contains("expanded"));});
 $("#sheetSummary").addEventListener("click",()=>{if(suppressSheetClick)return;setSheet(!sheet.classList.contains("expanded"));});
@@ -1035,7 +1037,18 @@ function renderSheetList(){
   }));
   setSheet(false);
 }
-function openDetail(m){selMountain=m;selRecord=null;renderDetail(m,true);}
+function openDetail(m){
+  selMountain=m;selRecord=null;
+  renderDetail(m,false);
+  if(mapReady){ // 산 위치로 지도 이동 + 확대 (이미 가까우면 유지)
+    map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));
+    if(map.getLevel()>5)map.setLevel(5);
+  }
+  // 팝업은 화면의 1/3만 올림 (드래그하면 전체로 펼칠 수 있음)
+  sheet.classList.remove("expanded","collapsed");
+  sheet.classList.add("peek");
+  setTimeout(()=>{if(mapReady)map.relayout();},220);
+}
 function courseHTML(name){
   const cs=(typeof COURSES!=="undefined"&&COURSES[name])||[];
   if(!cs.length)return '<div class="course-empty">코스 정보를 준비 중이에요.</div>';
