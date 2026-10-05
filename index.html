@@ -58,6 +58,16 @@ button{font-family:inherit;cursor:pointer}
 /* 내 위치 버튼 */
 #locateBtn{position:absolute;top:10px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px;color:#2e7d32}
 #homeBtn{position:absolute;bottom:76px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px}
+#measureBtn{position:absolute;bottom:130px;right:12px;z-index:1000;width:46px;height:46px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2);font-size:20px}
+#measureBtn.on{background:#e91e63;color:#fff}
+#measurePanel{position:absolute;top:170px;left:12px;right:12px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:14px}
+#measurePanel .m-hint{font-size:14px;color:#424242;line-height:1.7}
+#measurePanel .m-dist{font-size:17px;font-weight:800;color:#1b5e20;margin-bottom:6px}
+#measurePanel .m-leg{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:8px 0;border-top:1px solid #f0f0f0}
+#measurePanel .m-leg span{color:#757575;font-size:12px}
+#measurePanel .m-leg b{color:#2e7d32}
+#measurePanel .m-note{font-size:12px;color:#9e9e9e;margin:8px 0 2px}
+#measurePanel .m-btns{display:flex;gap:8px;margin-top:8px}
 #maptypeSeg{position:absolute;top:16px;right:66px;z-index:1000;display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.2);overflow:hidden}
 #maptypeSeg button{border:0;background:none;padding:9px 13px;font-size:13px;color:#757575;font-weight:700;cursor:pointer}
 #maptypeSeg button.on{background:#2e7d32;color:#fff}
@@ -251,6 +261,8 @@ button{font-family:inherit;cursor:pointer}
     </div>
     <button id="locateBtn" title="내 위치">◎</button>
     <button id="homeBtn" title="처음으로">🏠</button>
+    <button id="measureBtn" title="거리 재기">📏</button>
+    <div id="measurePanel" class="hidden"><div id="measureBody"></div></div>
     <div id="maptypeSeg"><button data-t="normal" class="on">일반</button><button data-t="skyview">위성</button></div>
     <button id="trackFab">🥾 등산 시작</button>
     <div id="trackBar" class="hidden">
@@ -646,7 +658,10 @@ function initMap(){
   kakao.maps.event.addListener(map,"zoom_changed",()=>{
     markers.forEach(o=>o.marker.setImage(badgeImage(o.m)));
   });
-  kakao.maps.event.addListener(map,"click",()=>{setSheet(false);}); // 지도 탭하면 시트 접기
+  kakao.maps.event.addListener(map,"click",(e)=>{
+    if(ms.active&&measureTap(e.latLng.getLat(),e.latLng.getLng()))return; // 거리 재기 모드: 지점 찍기
+    setSheet(false);
+  }); // 지도 탭하면 시트 접기
   mapReady=true;
   $("#sdkBanner").classList.add("hidden");
   buildMarkers();
@@ -722,6 +737,80 @@ function goHome(){
   applyFilters();setSheet(false);
 }
 $("#homeBtn").addEventListener("click",goHome);
+
+/* ===== 📏 거리 재기: 시작점→정상을 찍으면 직선거리 표시 ===== */
+const ms={active:false,step:0,a:null,b:null,mkA:null,mkB:null,line:null};
+function measureStatus(t){
+  $("#measureBody").innerHTML='<div class="m-hint">'+t+'</div>'
+    +'<div class="m-btns"><button class="btn ghost" id="mCancel">취소</button></div>';
+  $("#mCancel").addEventListener("click",closeMeasure);
+}
+function pointMarker(lat,lng,label,color){
+  const el=document.createElement("div");
+  el.style.cssText="background:"+color+";color:#fff;font-weight:800;font-size:12px;border-radius:999px;padding:6px 11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);white-space:nowrap;";
+  el.textContent=label;
+  const ov=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,xAnchor:0.5,yAnchor:0.5});
+  ov.setMap(map);
+  return ov;
+}
+function measureTap(lat,lng){
+  if(!ms.active)return false;
+  if(ms.step===1){
+    ms.a=[lat,lng];ms.step=2;
+    ms.mkA=pointMarker(lat,lng,"출발","#2e7d32");
+    measureStatus("② 도착지(정상)를 지도에 찍어주세요");
+  }else if(ms.step===2){
+    ms.b=[lat,lng];ms.step=3;
+    ms.mkB=pointMarker(lat,lng,"정상","#d32f2f");
+    ms.line=new kakao.maps.Polyline({path:[new kakao.maps.LatLng(ms.a[0],ms.a[1]),new kakao.maps.LatLng(lat,lng)],strokeWeight:4,strokeColor:"#e91e63",strokeOpacity:.9});
+    ms.line.setMap(map);
+    measureResult(hav(ms.a[0],ms.a[1],lat,lng));
+  }
+  return true;
+}
+function measureResult(d){
+  const ds=fmtDist(d);
+  $("#measureBody").innerHTML=
+    '<div class="m-dist">📏 직선거리 <b>'+ds+'</b></div>'
+    +'<div class="m-leg">⛰ 등반<span>출발 → 정상</span><b>'+ds+'</b></div>'
+    +'<div class="m-leg">🏔 하산<span>정상 → 출발</span><b>'+ds+'</b></div>'
+    +'<div class="m-note">직선거리예요. 실제 등산로는 더 깁니다.</div>'
+    +'<div class="m-btns"><button class="btn ghost" id="mRecUp">등반 기록</button><button class="btn ghost" id="mRecDown">하산 기록</button></div>'
+    +'<div class="m-btns"><button class="btn ghost" id="mRetry">다시 찍기</button><button class="btn ghost" id="mClose">닫기</button></div>';
+  $("#mRecUp").addEventListener("click",()=>openManualPrefill("등반",d));
+  $("#mRecDown").addEventListener("click",()=>openManualPrefill("하산",d));
+  $("#mRetry").addEventListener("click",startMeasure);
+  $("#mClose").addEventListener("click",closeMeasure);
+}
+function openManualPrefill(name,distM){
+  closeMeasure();
+  $("#mName").value=name;
+  $("#mDate").value=new Date().toISOString().slice(0,10);
+  const sel=$("#mMountain");sel.innerHTML='<option value="">산 선택 안 함</option>';
+  MOUNTAINS.slice().sort((a,b)=>a.name.localeCompare(b.name,"ko")).forEach(m=>{
+    const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.h)+"m)";sel.appendChild(o);
+  });
+  $("#mDist").value=(distM/1000).toFixed(1);
+  $("#mGain").value="";$("#mHour").value="";$("#mMin").value="";$("#mMemo").value="";
+  switchTab("record");
+  $("#manualModal").classList.remove("hidden");
+}
+function clearMeasure(){
+  [ms.mkA,ms.mkB].forEach(o=>{if(o)o.setMap(null);});
+  if(ms.line)ms.line.setMap(null);
+  ms.mkA=ms.mkB=ms.line=null;ms.a=ms.b=null;ms.step=0;
+}
+function closeMeasure(){clearMeasure();ms.active=false;$("#measureBtn").classList.remove("on");$("#measurePanel").classList.add("hidden");}
+function startMeasure(){
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  clearMeasure();
+  ms.active=true;ms.step=1;
+  $("#measureBtn").classList.add("on");
+  $("#measurePanel").classList.remove("hidden");
+  measureStatus("① 시작 지점을 지도에 찍어주세요");
+  toast("📏 시작 지점을 찍어주세요");
+}
+$("#measureBtn").addEventListener("click",()=>{ms.active?closeMeasure():startMeasure();});
 
 /* ===== 필터 + 검색 ===== */
 const filters={cat:"all",region:"",season:""};
