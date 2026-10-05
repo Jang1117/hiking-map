@@ -63,6 +63,7 @@ button{font-family:inherit;cursor:pointer}
 #measurePanel{position:absolute;top:170px;left:12px;right:12px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:14px}
 #measurePanel .m-hint{font-size:14px;color:#424242;line-height:1.7}
 #measurePanel .m-dist{font-size:17px;font-weight:800;color:#1b5e20;margin-bottom:6px}
+#measurePanel .m-dist .m-time{font-size:13px;color:#757575;font-weight:400;margin-left:6px}
 #measurePanel .m-leg{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:8px 0;border-top:1px solid #f0f0f0}
 #measurePanel .m-leg span{color:#757575;font-size:12px}
 #measurePanel .m-leg b{color:#2e7d32}
@@ -739,7 +740,7 @@ function goHome(){
 $("#homeBtn").addEventListener("click",goHome);
 
 /* ===== 📏 거리 재기: 시작점→정상을 찍으면 직선거리 표시 ===== */
-const ms={active:false,step:0,a:null,b:null,mkA:null,mkB:null,line:null};
+const ms={active:false,step:0,reqId:0,a:null,b:null,mkA:null,mkB:null,line:null};
 function measureStatus(t){
   $("#measureBody").innerHTML='<div class="m-hint">'+t+'</div>'
     +'<div class="m-btns"><button class="btn ghost" id="mCancel">취소</button></div>';
@@ -762,19 +763,56 @@ function measureTap(lat,lng){
   }else if(ms.step===2){
     ms.b=[lat,lng];ms.step=3;
     ms.mkB=pointMarker(lat,lng,"정상","#d32f2f");
-    ms.line=new kakao.maps.Polyline({path:[new kakao.maps.LatLng(ms.a[0],ms.a[1]),new kakao.maps.LatLng(lat,lng)],strokeWeight:4,strokeColor:"#e91e63",strokeOpacity:.9});
-    ms.line.setMap(map);
-    measureResult(hav(ms.a[0],ms.a[1],lat,lng));
+    const straightD=hav(ms.a[0],ms.a[1],lat,lng);
+    const myReq=++ms.reqId;
+    measureStatus("🚶 등산로 경로를 찾는 중...");
+    walkRoute(ms.a[1],ms.a[0],lng,lat).then(r=>{
+      if(myReq!==ms.reqId||!ms.active||ms.step!==3)return; // 취소/재시작된 경우 무시
+      if(r&&r.ok&&r.path&&r.path.length>1){
+        drawTrailLine(r.path);
+        measureResult(r.distance,r.time,true,straightD);
+      }else{
+        drawStraightLine();
+        measureResult(straightD,null,false,straightD);
+      }
+    });
   }
   return true;
 }
-function measureResult(d){
+// Edge Function(카카오 도보 길찾기 프록시) 호출 — 실패하면 null
+async function walkRoute(sx,sy,ex,ey){
+  if(!sb)return null; // Supabase 미설정 또는 Edge Function 미배포
+  try{
+    const res=await Promise.race([
+      sb.functions.invoke("walk-route",{body:{start_x:sx,start_y:sy,end_x:ex,end_y:ey}}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),12000))
+    ]);
+    if(res.error||!res.data||!res.data.ok)return null;
+    return res.data;
+  }catch(e){return null;}
+}
+function drawStraightLine(){
+  if(ms.line)ms.line.setMap(null);
+  ms.line=new kakao.maps.Polyline({path:[new kakao.maps.LatLng(ms.a[0],ms.a[1]),new kakao.maps.LatLng(ms.b[0],ms.b[1])],strokeWeight:4,strokeColor:"#e91e63",strokeOpacity:.9});
+  ms.line.setMap(map);
+}
+function drawTrailLine(path){
+  if(ms.line)ms.line.setMap(null);
+  ms.line=new kakao.maps.Polyline({path:path.map(p=>new kakao.maps.LatLng(p[1],p[0])),strokeWeight:5,strokeColor:"#7b1fa2",strokeOpacity:.9});
+  ms.line.setMap(map);
+}
+function measureResult(d,timeSec,isTrail,straightD){
   const ds=fmtDist(d);
-  $("#measureBody").innerHTML=
-    '<div class="m-dist">📏 직선거리 <b>'+ds+'</b></div>'
+  const head=isTrail
+    ?'<div class="m-dist">🚶 등산로 <b>'+ds+'</b>'+(timeSec!=null?'<span class="m-time">약 '+fmtDur(timeSec)+'</span>':"")+'</div>'
+    :'<div class="m-dist">📏 직선거리 <b>'+ds+'</b></div>';
+  const note=isTrail
+    ?'<div class="m-note">카카오 도보 길찾기 기준 실제 등산로 경로예요. (직선거리 '+fmtDist(straightD)+')</div>'
+    :'<div class="m-note">등산로 경로를 찾지 못했어요. 직선거리로 표시합니다.</div>';
+  $("#measureBody").innerHTML=head
     +'<div class="m-leg">⛰ 등반<span>출발 → 정상</span><b>'+ds+'</b></div>'
     +'<div class="m-leg">🏔 하산<span>정상 → 출발</span><b>'+ds+'</b></div>'
-    +'<div class="m-note">직선거리예요. 실제 등산로는 더 깁니다.</div>'
+    +note
     +'<div class="m-btns"><button class="btn ghost" id="mRecUp">등반 기록</button><button class="btn ghost" id="mRecDown">하산 기록</button></div>'
     +'<div class="m-btns"><button class="btn ghost" id="mRetry">다시 찍기</button><button class="btn ghost" id="mClose">닫기</button></div>';
   $("#mRecUp").addEventListener("click",()=>openManualPrefill("등반",d));
