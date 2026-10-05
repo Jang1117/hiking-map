@@ -528,8 +528,8 @@ async function syncAfterLogin(){
   for(const r of legacy){await sbUpsert(r);}
   try{localStorage.removeItem(LS_RECORDS);}catch(e){}
   records=[];
-  backfillCourseRecords(); // 체크된 코스 중 서버에 없는 기록 보충
-  await sbPull();
+  await sbPull(); // 먼저 서버 기록을 불러오고
+  backfillCourseRecords(); // 서버에 없는 체크된 코스만 보충 (수정된 시간 덮어쓰기 방지)
   renderRecords();
 }
 function updateAuthUI(){
