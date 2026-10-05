@@ -477,6 +477,7 @@ function deviceId(){let id=null;try{id=localStorage.getItem(LS_DEVICE);}catch(e)
 const SB_OK=SUPABASE_URL.indexOf("https://")===0&&SUPABASE_ANON_KEY.indexOf("여기에_")!==0;
 let sb=null;
 if(SB_OK&&window.supabase){try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);}catch(e){sb=null;}}
+const FN_WALK="super-action"; // 도보 경로 Edge Function 이름 (대시보드 배포 이름과 일치해야 함)
 let sbUser=null; // 로그인한 사용자 (없으면 로컬 모드)
 function stripSrv(r){const c=Object.assign({},r);delete c._srv;return c;}
 function recToRow(r){return{id:r.id,device_id:deviceId(),user_id:sbUser?sbUser.id:null,name:r.name,date:new Date(r.date).toISOString(),
@@ -784,7 +785,7 @@ async function walkRoute(sx,sy,ex,ey){
   if(!sb)return null; // Supabase 미설정 또는 Edge Function 미배포
   try{
     const res=await Promise.race([
-      sb.functions.invoke("walk-route",{body:{start_x:sx,start_y:sy,end_x:ex,end_y:ey}}),
+      sb.functions.invoke(FN_WALK,{body:{start_x:sx,start_y:sy,end_x:ex,end_y:ey}}),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),12000))
     ]);
     if(res.error||!res.data||!res.data.ok)return null;
