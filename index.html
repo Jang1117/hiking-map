@@ -103,6 +103,7 @@ button{font-family:inherit;cursor:pointer}
 .bdg.np{background:#1b5e20;color:#fff}
 .bdg.pp{background:#e0f2f1;color:#00695c}
 .bdg.done{background:#fff3e0;color:#e65100}
+.bdg.fav{background:#fff8e1;color:#f57f17}
 .bdg.season{background:#e3f2fd;color:#1565c0}
 .diffbar{display:inline-flex;gap:3px;vertical-align:middle;margin-left:6px}
 .diffbar i{width:14px;height:6px;border-radius:3px;background:#e0e0e0}
@@ -241,6 +242,7 @@ button{font-family:inherit;cursor:pointer}
         <button class="chip" data-cat="pp">도립공원</button>
         <button class="chip" data-cat="easy">초보추천</button>
         <button class="chip" data-cat="done">✓ 등정완료</button>
+        <button class="chip" data-cat="fav">⭐ 즐겨찾기</button>
         <button class="chip" id="chipRegion">지역 ▾</button>
         <button class="chip" id="chipSeason">계절 ▾</button>
       </div>
@@ -288,6 +290,12 @@ button{font-family:inherit;cursor:pointer}
         </div>
         <button class="btn primary" id="btnRecommend" style="margin-top:12px">추천받기</button>
         <div id="recResult"></div>
+      </div>
+      <div class="sec-title" id="nearbyTitle">📍 내 주변 산</div>
+      <div class="rec-box">
+        <div style="font-size:13px;color:#616161;margin-bottom:10px">현재 위치에서 가까운 산 TOP 8을 보여드려요.</div>
+        <button class="btn primary" id="btnNearby">내 주변 산 찾기</button>
+        <div class="hscroll" id="nearbyCards" style="margin-top:12px"></div>
       </div>
       <div class="sec-title" id="seasonTitle">지금 계절 추천</div>
       <div class="hscroll" id="seasonCards"></div>
@@ -431,6 +439,22 @@ function refreshSummitUI(){
   else buildMarkers();
   renderProgress();if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
 
+/* ===== 즐겨찾기 ===== */
+const LS_FAV="mtapp_fav";
+function loadFav(){try{return JSON.parse(localStorage.getItem(LS_FAV))||[]}catch(e){return[]}}
+function saveFav(){try{localStorage.setItem(LS_FAV,JSON.stringify(favs));}catch(e){}}
+let favs=loadFav(); // 산 이름 배열
+const isFav=n=>favs.includes(n);
+function toggleFav(n){
+  if(isFav(n)){favs=favs.filter(x=>x!==n);toast("⭐ 즐겨찾기 해제");}
+  else{favs.push(n);toast("⭐ 즐겨찾기에 추가했어요");}
+  saveFav();refreshFavUI();
+}
+function refreshFavUI(){
+  if(typeof filters!=="undefined"&&filters.cat==="fav")applyFilters(); // 즐겨찾기 필터 중이면 목록도 갱신
+  else buildMarkers();
+  if(sheetMode==="detail"&&selMountain)renderDetail(selMountain,false);}
+
 /* ===== Supabase 서버 동기화 ===== */
 const LS_DEVICE="mtapp_device";
 function deviceId(){let id=null;try{id=localStorage.getItem(LS_DEVICE);}catch(e){}
@@ -573,6 +597,7 @@ let markers=[]; // {m, marker}
 // SVG 산 뱃지 → 카카오 MarkerImage
 function badgeImage(m){
   const done=isSummited(m.name);
+  const fav=isFav(m.name);
   const lvl=mapReady?map.getLevel():13;
   const raw=lvl<=10?Math.round(m.h)+"m":m.name; // 줌인(레벨↓)일수록 표고, 줌아웃이면 산 이름
   const label=String(raw).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -581,9 +606,14 @@ function badgeImage(m){
   let w=20;
   for(const ch of String(raw)){w+=/[가-힣]/.test(ch)?13:7;}
   if(done)w+=16;
+  if(fav)w+=16;
   const h=30;
   let inner='<rect x="1" y="1" width="'+(w-2)+'" height="'+(h-2)+'" rx="14" fill="'+bg+'" stroke="'+bd+'" stroke-width="2"/>'
     +'<text x="'+(w/2)+'" y="19.5" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff" font-family="sans-serif">'+label+'</text>';
+  if(fav){
+    inner+='<circle cx="9" cy="7" r="8" fill="#ffb300" stroke="#ffffff" stroke-width="2"/>'
+      +'<text x="9" y="10.5" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff" font-family="sans-serif">★</text>';
+  }
   if(done){
     inner+='<circle cx="'+(w-7)+'" cy="7" r="8" fill="#ffa000" stroke="#ffffff" stroke-width="2"/>'
       +'<text x="'+(w-7)+'" y="10.5" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff" font-family="sans-serif">✓</text>';
@@ -703,6 +733,7 @@ function applyFilters(){
     if(filters.cat==="pp"&&!m.pp)return false;
     if(filters.cat==="easy"&&m.df>2)return false;
     if(filters.cat==="done"&&!isSummited(m.name))return false;
+    if(filters.cat==="fav"&&!isFav(m.name))return false;
     if(filters.region&&!mountainSidos(m).includes(filters.region))return false;
     if(filters.season&&!m.s.includes(filters.season))return false;
     return true;
@@ -793,6 +824,7 @@ function cardHTML(m){
     +(m.np?'<span class="bdg np">국립공원</span>':"")
     +(m.pp?'<span class="bdg pp">도립공원</span>':"")
     +(isSummited(m.name)?'<span class="bdg done">✓ 등정 완료</span>':"")
+    +(isFav(m.name)?'<span class="bdg fav">★ 즐겨찾기</span>':"")
     +m.s.map(s=>'<span class="bdg season">'+s+'</span>').join("")
     +"</div></div>";
 }
@@ -893,16 +925,19 @@ function renderDetail(m,expand){
     +(m.np?'<span class="bdg np">국립공원</span>':"")
     +(m.pp?'<span class="bdg pp">도립공원</span>':"")
     +(done?'<span class="bdg done">✓ 등정 완료</span>':"")
+    +(isFav(m.name)?'<span class="bdg fav">★ 즐겨찾기</span>':"")
     +m.s.map(s=>'<span class="bdg season">'+s+' 추천</span>').join("")
     +"</div>"
     +'<div class="d-desc">'+esc(m.d)+"</div>"
     +'<div class="d-sec-t">🥾 등산 코스</div><div class="d-courses">'+courseHTML(m.name)+"</div>"
     +'<div class="d-btns">'
     +'<button class="btn '+(done?"done-on":"ghost")+'" id="btnSummit">'+(done?"✓ 등정 완료 (해제)":"등정 완료 체크")+'</button>'
+    +'<button class="btn ghost" id="btnFav">'+(isFav(m.name)?"★ 즐겨찾기 해제":"☆ 즐겨찾기 추가")+'</button>'
     +'<button class="btn primary" id="btnTrackHere">이 산으로 GPS 기록 시작</button>'
     +"</div>";
   $("#detailBack").addEventListener("click",renderSheetList);
   $("#btnSummit").addEventListener("click",()=>toggleSummit(m.name));
+  $("#btnFav").addEventListener("click",()=>toggleFav(m.name));
   $("#btnTrackHere").addEventListener("click",()=>{startTracking(m.name);});
   $("#sheetBody").querySelectorAll(".c-check").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();toggleCourseDone(b.dataset.m,b.dataset.c,b.dataset.d);}));
   if(expand)setSheet(true);
@@ -915,7 +950,8 @@ function switchTab(t){
   $$(".tabpage").forEach(p=>p.classList.remove("active"));
   $("#tab-"+t).classList.add("active");
   if(t==="map"){setTimeout(()=>{if(mapReady)map.relayout();},60);}
-  if(t==="discover"){renderProgress();renderSeasonCards();}
+  if(t==="discover"){renderProgress();renderSeasonCards();
+    const c=freshPos();if(c&&!$("#nearbyCards").children.length)renderNearby(c.lat,c.lng);}
   if(t==="record"){renderRecords();}
 }
 
@@ -947,6 +983,25 @@ $("#btnRecommend").addEventListener("click",()=>{
     +'<div class="bi">'+Math.round(m.h)+'m · '+esc(m.r)+'<br>'+esc(m.d)+'</div>'
     +'<button class="btn" id="btnGoMap">지도에서 보기</button></div>';
   $("#btnGoMap").addEventListener("click",()=>{switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);});
+});
+/* 내 주변 산 추천 (현재 위치 기준 가까운 순 TOP 8) */
+function renderNearby(lat,lng){
+  const list=MOUNTAINS.map(m=>({m:m,d:hav(lat,lng,m.lat,m.lng)}))
+    .filter(o=>o.d<=60000).sort((a,b)=>a.d-b.d).slice(0,8);
+  const box=$("#nearbyCards");
+  if(!list.length){box.innerHTML='<div class="empty" style="padding:16px">60km 안에 산이 없어요.</div>';return;}
+  box.innerHTML=list.map(o=>'<div class="hcard" data-nm="'+esc(o.m.name)+'"><div class="n">'+esc(o.m.name)+'</div><div class="h">'+fmtDist(o.d)+'</div><div class="r">'+Math.round(o.m.h)+'m · '+esc(o.m.r.split(",")[0])+'</div></div>').join("");
+  box.querySelectorAll(".hcard").forEach(c=>c.addEventListener("click",()=>{
+    const m=MOUNTAINS.find(x=>x.name===c.dataset.nm);
+    switchTab("map");if(mapReady){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(6);}openDetail(m);
+  }));
+}
+$("#btnNearby").addEventListener("click",()=>{
+  const c=freshPos();
+  if(c){renderNearby(c.lat,c.lng);return;} // 10분 이내 위치 기록이 있으면 권한 재요청 없이 사용
+  if(!navigator.geolocation){toast("이 기기에서 위치 기능을 사용할 수 없어요.");return;}
+  toast("위치를 확인하는 중...");
+  requestPos((lat,lng)=>renderNearby(lat,lng));
 });
 function renderSeasonCards(){
   const s=curSeason();
