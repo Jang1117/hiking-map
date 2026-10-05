@@ -1515,21 +1515,21 @@ async function ensureRoute(r){
   }
   return null;
 }
-// 그날 그 산의 기록 경로를 지도에 한 번에 표시
+// 그날 그 산의 기록 경로를 지도에 한 번에 표시 (시트는 접어서 한눈에 보이게)
 async function viewDayRoutes(mtn,day){
   const rs=records.filter(r=>!isCourseRec(r)&&r.mountain===mtn&&dateInputVal(r.date)===day);
   if(!rs.length)return;
   switchTab("map");
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
-  sheet.classList.add("fit");
   clearDayLines();
   if(recordLine){recordLine.setMap(null);recordLine=null;}
-  sheetMode="record";selRecord=null;updateSummary();
-  $("#sheetBody").innerHTML='<div class="d-title">⛰ '+esc(mtn)+' <span style="font-size:13px;color:#757575;font-weight:400">'+esc(day)+'</span></div>'
-    +'<div class="d-meta">경로를 찾는 중...</div>';
-  setSheet(true);
+  sheetMode="record";selRecord=null;
+  sheet.classList.remove("fit");
+  setSheet(false); // 시트를 접어 지도 전체에 경로가 보이게
+  $("#sheetSummary").innerHTML="⛰ "+esc(mtn)+'<span class="sub">🟢 등반 · 🔴 하산 경로</span>';
   const bounds=new kakao.maps.LatLngBounds();
   let drawn=0;
+  const names=[];
   for(const r of rs){
     const pts=await ensureRoute(r);
     if(pts&&pts.length>1){
@@ -1537,16 +1537,15 @@ async function viewDayRoutes(mtn,day){
       const line=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:routeColor(r.name),strokeOpacity:.9});
       line.setMap(map);dayLines.push(line);
       path.forEach(pt=>bounds.extend(pt));drawn++;
+      names.push(routeDot(r.name)+" "+esc(r.name||"등산 기록"));
     }
   }
   if(drawn){
     map.setBounds(bounds);
-    $("#sheetBody").innerHTML='<div class="d-title">⛰ '+esc(mtn)+' <span style="font-size:13px;color:#757575;font-weight:400">'+esc(day)+'</span></div>'
-      +'<div class="d-meta">등산·하산 경로를 함께 표시해요.<br>'
-      +rs.map(r=>routeDot(r.name)+" "+esc(r.name||"등산 기록")+" · "+fmtDist(r.distance)).join("<br>")+'</div>';
+    $("#sheetSummary").innerHTML="⛰ "+esc(mtn)+'<span class="sub">'+names.join(" · ")+"</span>";
   }else{
-    $("#sheetBody").innerHTML='<div class="d-title">⛰ '+esc(mtn)+'</div>'
-      +'<div class="d-meta">표시할 경로가 없어요.<br>📏 거리 재기로 다시 재서 저장하면 경로가 표시돼요.</div>';
+    $("#sheetSummary").innerHTML="⛰ "+esc(mtn)+'<span class="sub">표시할 경로가 없어요</span>';
+    toast("표시할 경로가 없어요. 📏 거리 재기로 다시 재서 저장해 보세요.");
   }
 }
 function viewRecord(r){
