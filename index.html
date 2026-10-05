@@ -448,11 +448,12 @@ function recToRow(r){return{id:r.id,device_id:deviceId(),user_id:sbUser?sbUser.i
 function rowToRec(w){return{id:w.id,name:w.name,date:new Date(w.date).getTime(),mountain:w.mountain,
   memo:w.memo||"",distance:w.distance||0,duration:w.duration||0,gain:w.gain||0,points:w.points||[]};}
 // 저장/삭제 시 서버에 반영 (실패해도 로컬 기록은 유지)
-async function sbUpsert(r){
-  if(!sb||!sbUser)return; // 로그인 상태에서만 동기화
+async function sbUpsert(r,quiet){
+  if(!sb||!sbUser)return false; // 로그인 상태에서만 동기화
   try{const{error}=await sb.from("hiking_records").upsert(recToRow(r),{onConflict:"id"});
-    if(error)toast("서버 동기화 실패: "+error.message);}
-  catch(e){toast("서버 동기화 실패 (네트워크 오류)");}
+    if(error){if(!quiet)toast("서버 동기화 실패: "+error.message);return false;}
+    return true;}
+  catch(e){if(!quiet)toast("서버 동기화 실패 (네트워크 오류)");return false;}
 }
 async function sbDelete(id){
   if(!sb||!sbUser)return;
@@ -1118,10 +1119,13 @@ function bindTimeEdit(scope){
       +'<input type="number" class="tedit" id="teM" min="0" max="59" inputmode="numeric" value="'+m+'"> 분 '
       +'<button class="tedit-ok">✓</button>';
     el.querySelectorAll("input").forEach(i=>i.addEventListener("click",ev=>ev.stopPropagation()));
-    el.querySelector(".tedit-ok").addEventListener("click",ev=>{
+    el.querySelector(".tedit-ok").addEventListener("click",async ev=>{
       ev.stopPropagation();
       const hh=parseInt(el.querySelector("#teH").value,10)||0,mm=parseInt(el.querySelector("#teM").value,10)||0;
-      r.duration=hh*3600+mm*60;saveRecords();sbUpsert(r);renderRecords();toast("시간을 바꿨어요.");
+      r.duration=hh*3600+mm*60;saveRecords();
+      const ok=await sbUpsert(r,true);
+      renderRecords();
+      toast(ok?"시간을 바꿨어요.":"서버에 저장되지 않았어요. 다시 시도해주세요.");
     });
   }));
 }
@@ -1134,9 +1138,13 @@ function bindDateEdit(scope){
     inp.addEventListener("click",ev=>ev.stopPropagation());
     el.textContent="";el.appendChild(inp);inp.focus();
     let done=false;
-    const finish=ok=>{
+    const finish=async ok=>{
       if(done)return;done=true;
-      if(ok&&inp.value){r.date=new Date(inp.value+"T12:00:00").getTime();saveRecords();sbUpsert(r);toast("날짜를 바꿨어요.");}
+      if(ok&&inp.value){
+        r.date=new Date(inp.value+"T12:00:00").getTime();saveRecords();
+        const okS=await sbUpsert(r,true);
+        toast(okS?"날짜를 바꿨어요.":"서버에 저장되지 않았어요. 다시 시도해주세요.");
+      }
       renderRecords();
     };
     inp.addEventListener("change",()=>finish(true));
