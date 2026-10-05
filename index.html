@@ -185,6 +185,11 @@ button{font-family:inherit;cursor:pointer}
 .cbadge{font-size:11px;font-weight:800;white-space:nowrap;padding:3px 8px;border-radius:999px}
 .cbadge.up{background:#e3f2fd;color:#1565c0}
 .cbadge.down{background:#e8f5e9;color:#2e7d32}
+.cbadge.etc{background:#f3e5f5;color:#6a1b9a}
+.minfo{flex:1;min-width:0;cursor:pointer}
+.minfo .cnm{display:block}
+.cmemo{font-size:12px;color:#757575;padding:2px 0 8px;border-top:1px dashed #f0f0f0}
+.sbtn.mini{flex:0 0 auto;padding:6px 10px;font-size:11px;min-height:0}
 .cnm{flex:1;font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cinfo{flex:1;min-width:0;cursor:pointer}
 .cinfo .cnm{display:block}
@@ -193,7 +198,7 @@ button{font-family:inherit;cursor:pointer}
 .tedit{width:54px;font-size:13px;border:1px solid #a5d6a7;border-radius:8px;padding:4px 6px;font-family:inherit}
 .tedit-ok{border:0;background:#2e7d32;color:#fff;border-radius:8px;padding:5px 10px;font-size:13px;font-weight:700;cursor:pointer}
 .cdt{font-size:12px;color:#616161;white-space:nowrap;border-bottom:1px dashed #9e9e9e;cursor:pointer}
-.cx{border:0;background:none;color:#b0b0b0;font-size:19px;cursor:pointer;padding:0 2px;line-height:1}
+.cx,.mx{border:0;background:none;color:#b0b0b0;font-size:19px;cursor:pointer;padding:0 2px;line-height:1}
 .date-edit{font-size:13px;border:1px solid #a5d6a7;border-radius:8px;padding:4px 6px;font-family:inherit}
 .rd-sub{font-size:11px;color:#9e9e9e;font-weight:400;margin-left:8px}
 .sbtn{flex:1;border:1px solid #d5d5d5;background:#fff;border-radius:10px;padding:10px 0;font-size:13px;font-weight:600;min-height:42px}
@@ -741,7 +746,8 @@ function goHome(){
 $("#homeBtn").addEventListener("click",goHome);
 
 /* ===== 📏 거리 재기: 시작점→정상을 찍으면 직선거리 표시 ===== */
-const ms={active:false,reqId:0,pts:[],markers:[],line:null};
+const ms={active:false,reqId:0,pts:[],markers:[],line:null,lastPath:null};
+let pendingPath=null; // 직접 기록 저장 시 함께 넣을 측정 경로 ([위도,경도] 배열)
 function measureStatus(t,doneBtn){
   $("#measureBody").innerHTML='<div class="m-hint">'+t+'</div>'
     +(doneBtn?'<div class="m-btns"><button class="btn primary" id="mDone">✅ 완료 ('+ms.pts.length+'곳)</button><button class="btn ghost" id="mRetryS">다시 찍기</button></div>' :"");
@@ -790,7 +796,8 @@ function finishMeasure(){
   const straightD=ptsTotalStraight(pts);
   walkRoutePts(pts).then(r=>{
     if(myReq!==ms.reqId||!ms.active)return; // 취소/재시작된 경우 무시
-    if(r&&r.ok&&r.path&&r.path.length>1){
+    ms.lastPath=(r&&r.ok&&r.path&&r.path.length>1)?r.path:null; // [[경도,위도]]
+    if(ms.lastPath){
       drawTrailLine(r.path);
       measureResult(r.distance,r.time,true,straightD,pts.length);
     }else{
@@ -836,13 +843,14 @@ function measureResult(d,timeSec,isTrail,straightD,nPts){
     +note
     +'<div class="m-btns"><button class="btn ghost" id="mRecUp">등반 기록</button><button class="btn ghost" id="mRecDown">하산 기록</button></div>'
     +'<div class="m-btns"><button class="btn ghost" id="mRetry">다시 찍기</button><button class="btn ghost" id="mClose">닫기</button></div>';
-  $("#mRecUp").addEventListener("click",()=>openManualPrefill("등반",d));
-  $("#mRecDown").addEventListener("click",()=>openManualPrefill("하산",d));
+  $("#mRecUp").addEventListener("click",()=>openManualPrefill("등반",d,ms.lastPath));
+  $("#mRecDown").addEventListener("click",()=>openManualPrefill("하산",d,ms.lastPath));
   $("#mRetry").addEventListener("click",startMeasure);
   $("#mClose").addEventListener("click",closeMeasure);
 }
-function openManualPrefill(name,distM){
+function openManualPrefill(name,distM,pathLngLat){
   closeMeasure();
+  pendingPath=(pathLngLat&&pathLngLat.length>1)?pathLngLat.map(p=>[p[1],p[0]]):null; // [위도,경도]로 변환
   $("#mName").value=name;
   $("#mDate").value=new Date().toISOString().slice(0,10);
   const sel=$("#mMountain");sel.innerHTML='<option value="">산 선택 안 함</option>';
@@ -857,7 +865,7 @@ function openManualPrefill(name,distM){
 function clearMeasure(){
   ms.markers.forEach(o=>{if(o)o.setMap(null);});
   if(ms.line)ms.line.setMap(null);
-  ms.markers=[];ms.line=null;ms.pts=[];
+  ms.markers=[];ms.line=null;ms.pts=[];ms.lastPath=null;
 }
 function closeMeasure(){clearMeasure();ms.active=false;$("#measureBtn").classList.remove("on");$("#measurePanel").classList.add("hidden");}
 function startMeasure(){
@@ -1276,6 +1284,7 @@ $("#btnManual").addEventListener("click",()=>{
     const o=document.createElement("option");o.value=m.name;o.textContent=m.name+" ("+Math.round(m.h)+"m)";sel.appendChild(o);
   });
   $("#mDist").value="";$("#mGain").value="";$("#mHour").value="";$("#mMin").value="";$("#mMemo").value="";
+  pendingPath=null; // 직접 추가에는 경로 없음
   $("#manualModal").classList.remove("hidden");
 });
 $("#mCancel").addEventListener("click",()=>$("#manualModal").classList.add("hidden"));
@@ -1288,7 +1297,8 @@ $("#mSave").addEventListener("click",()=>{
   const dur=(parseInt($("#mHour").value,10)||0)*3600+(parseInt($("#mMin").value,10)||0)*60;
   const gain=parseInt($("#mGain").value,10)||0;
   const rec={id:"m"+Date.now(),name:name,date:date,mountain:mt,memo:$("#mMemo").value.trim(),
-    distance:Math.round(distKm*1000),duration:dur,gain:gain,points:[]};
+    distance:Math.round(distKm*1000),duration:dur,gain:gain,points:pendingPath||[]};
+  pendingPath=null;
   records.unshift(rec);saveRecords();sbUpsert(rec);
   if(mt&&!isSummited(mt)){summits.push(mt);saveSummits();toast("저장됐어요 🎉 "+mt+" 등정 완료!");}
   else toast("기록을 저장했어요.");
@@ -1360,7 +1370,19 @@ function renderRecords(){
   if(!sbUser){box.innerHTML='<div class="empty">🔒 로그인하면 등산 기록을<br>서버에만 저장하고 이용할 수 있어요.</div>';return;}
   if(!records.length){box.innerHTML='<div class="empty">아직 기록이 없어요.<br>등산을 시작해 첫 기록을 남겨보세요 🥾</div>';return;}
   const courseRecs=records.filter(isCourseRec);
-  const normalRecs=records.filter(r=>!isCourseRec(r));
+  const restRecs=records.filter(r=>!isCourseRec(r));
+  const soloRecs=restRecs.filter(r=>!r.mountain);
+  const dayGroups={},dayOrder=[]; // 같은 산 + 같은 날 → 한 카드
+  restRecs.filter(r=>r.mountain).forEach(r=>{
+    const k=r.mountain+"|"+dateInputVal(r.date);
+    if(!dayGroups[k]){dayGroups[k]=[];dayOrder.push(k);}
+    dayGroups[k].push(r);
+  });
+  const dirRank=r=>{const n=r.name||"";return /등반|오름/.test(n)?0:/하산|내림/.test(n)?1:2;};
+  const dirBadge=n=>{n=n||"";
+    if(/등반|오름/.test(n))return '<span class="cbadge up">▲ 등반</span>';
+    if(/하산|내림/.test(n))return '<span class="cbadge down">▼ 하산</span>';
+    return '<span class="cbadge etc">'+esc(n.slice(0,6)||"기록")+'</span>';};
   const groups=[],gmap={};
   courseRecs.forEach(r=>{const m=r.mountain||"코스 기록";if(!gmap[m]){gmap[m]=[];groups.push(m);}gmap[m].push(r);});
   let h=groups.map(m=>{
@@ -1379,7 +1401,25 @@ function renderRecords(){
       +'<div class="rs"><span>📏 <b>'+fmtDist(totD)+'</b></span><span>⏱ <b>'+fmtDur(totT)+'</b></span></div>'
       +"</div>";
   }).join("");
-  h+=normalRecs.map(r=>'<div class="rec-card" data-id="'+r.id+'">'
+  h+=dayOrder.map(k=>{
+    const rs=dayGroups[k];
+    const mtn=rs[0].mountain,day=dateInputVal(rs[0].date);
+    rs.sort((a,b)=>dirRank(a)-dirRank(b)||(b.date-a.date));
+    const totD=rs.reduce((a,r)=>a+(r.distance||0),0),totT=rs.reduce((a,r)=>a+(r.duration||0),0);
+    const hasRoute=rs.some(r=>r.points&&r.points.length>1);
+    return '<div class="rec-card"><div class="rn">⛰ '+esc(mtn)+'<span class="rd-sub">'+day+' · 기록 '+rs.length+'건</span></div>'
+      +rs.map(r=>'<div class="crow">'+dirBadge(r.name)
+        +'<span class="minfo" data-id="'+r.id+'" title="상세 보기"><span class="cnm">'+esc(r.name||"등산 기록")+'</span>'
+        +'<span class="cstat" data-id="'+r.id+'" title="시간 수정">'+fmtDist(r.distance)+' · '+fmtDur(r.duration)+'</span></span>'
+        +'<span class="cdt" data-id="'+r.id+'" title="날짜 수정">'+dateInputVal(r.date)+'</span>'
+        +(r.points&&r.points.length>1?'<button class="sbtn mini gpxrow" data-id="'+r.id+'">GPX</button>' :"")
+        +'<button class="mx" data-id="'+r.id+'" title="삭제">×</button></div>'
+        +(r.memo?'<div class="cmemo">'+esc(r.memo)+'</div>' :"")).join("")
+      +'<div class="rs"><span>📏 <b>'+fmtDist(totD)+'</b></span><span>⏱ <b>'+fmtDur(totT)+'</b></span></div>'
+      +(hasRoute?'<div class="rb"><button class="sbtn viewday" data-mtn="'+esc(mtn)+'" data-day="'+day+'">🗺 지도에서 보기</button></div>' :"")
+      +"</div>";
+  }).join("");
+  h+=soloRecs.map(r=>'<div class="rec-card" data-id="'+r.id+'">'
     +'<div class="rn">'+esc(r.name)+'</div>'
     +'<div class="rd"><span class="cdt" data-id="'+r.id+'" title="날짜 수정">'+fmtDate(r.date)+'</span>'+(r.mountain?" · ⛰ "+esc(r.mountain):"")+(r.memo?"<br>"+esc(r.memo):"")+'</div>'
     +'<div class="rs"><span>📏 <b>'+fmtDist(r.distance)+'</b></span><span>⏱ <b>'+fmtDur(r.duration)+'</b></span><span>⛰ <b>'+r.gain+'m</b></span></div>'
@@ -1395,6 +1435,15 @@ function renderRecords(){
     switchTab("map");
     if(mapReady&&m){map.setCenter(new kakao.maps.LatLng(m.lat,m.lng));map.setLevel(5);openDetail(m);}
   }));
+  box.querySelectorAll(".mx").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    if(confirm("이 기록을 삭제할까요?")){records=records.filter(x=>x.id!==b.dataset.id);saveRecords();sbDelete(b.dataset.id);renderRecords();toast("기록을 삭제했어요.");}}));
+  box.querySelectorAll(".minfo").forEach(el=>el.addEventListener("click",e=>{
+    e.stopPropagation();
+    const r=records.find(x=>x.id===el.dataset.id);if(r)viewRecord(r);}));
+  box.querySelectorAll(".gpxrow").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const r=records.find(x=>x.id===b.dataset.id);if(r)downloadGPX(r);}));
+  box.querySelectorAll(".viewday").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();viewDayRoutes(b.dataset.mtn,b.dataset.day);}));
   box.querySelectorAll('.rec-card[data-id]').forEach(card=>{
     const r=records.find(x=>x.id===card.dataset.id);if(!r)return;
     card.querySelector(".view").addEventListener("click",e=>{e.stopPropagation();viewRecord(r);});
@@ -1408,10 +1457,38 @@ function renderRecords(){
   bindTimeEdit(box);
 }
 let recordLine=null;
+let dayLines=[];
+function clearDayLines(){dayLines.forEach(l=>{try{l.setMap(null);}catch(e){}});dayLines=[];}
+function routeColor(name){const n=name||"";return /등반|오름/.test(n)?"#2e7d32":/하산|내림/.test(n)?"#d32f2f":"#7b1fa2";}
+function routeDot(name){const n=name||"";return /등반|오름/.test(n)?"🟢":/하산|내림/.test(n)?"🔴":"🟣";}
+// 그날 그 산의 기록 경로를 지도에 한 번에 표시
+function viewDayRoutes(mtn,day){
+  const rs=records.filter(r=>!isCourseRec(r)&&r.mountain===mtn&&dateInputVal(r.date)===day&&r.points&&r.points.length>1);
+  if(!rs.length){toast("표시할 경로가 없어요.");return;}
+  switchTab("map");
+  if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
+  sheet.classList.add("fit");
+  clearDayLines();
+  if(recordLine){recordLine.setMap(null);recordLine=null;}
+  const bounds=new kakao.maps.LatLngBounds();
+  rs.forEach(r=>{
+    const path=r.points.map(p=>new kakao.maps.LatLng(p[0],p[1]));
+    const line=new kakao.maps.Polyline({path:path,strokeWeight:5,strokeColor:routeColor(r.name),strokeOpacity:.9});
+    line.setMap(map);dayLines.push(line);
+    path.forEach(pt=>bounds.extend(pt));
+  });
+  map.setBounds(bounds);
+  sheetMode="record";selRecord=null;updateSummary();
+  $("#sheetBody").innerHTML='<div class="d-title">⛰ '+esc(mtn)+' <span style="font-size:13px;color:#757575;font-weight:400">'+esc(day)+'</span></div>'
+    +'<div class="d-meta">등산·하산 경로를 함께 표시해요.<br>'
+    +rs.map(r=>routeDot(r.name)+" "+esc(r.name||"등산 기록")+" · "+fmtDist(r.distance)).join("<br>")+'</div>';
+  setSheet(true);
+}
 function viewRecord(r){
   switchTab("map");
   if(!mapReady){toast("지도를 사용하려면 카카오 앱키를 먼저 입력해주세요.");return;}
   sheet.classList.add("fit");
+  clearDayLines();
   if(recordLine){recordLine.setMap(null);recordLine=null;}
   const hasTrack=r.points&&r.points.length>1;
   if(hasTrack){
@@ -1440,7 +1517,8 @@ function downloadGPX(r){
   let s='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="hiking-map" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>'+escXml(r.name)+'</name><trkseg>\n';
   r.points.forEach(p=>{s+='<trkpt lat="'+p[0].toFixed(6)+'" lon="'+p[1].toFixed(6)+'">';
     if(p[2]!=null)s+='<ele>'+p[2].toFixed(1)+'</ele>';
-    s+='<time>'+new Date(p[3]).toISOString()+'</time></trkpt>\n';});
+    if(p[3]!=null){const tt=new Date(p[3]);if(!isNaN(tt))s+='<time>'+tt.toISOString()+'</time>';} // 측정 경로는 시간 없음
+    s+='</trkpt>\n';});
   s+='</trkseg></trk>\n</gpx>';
   const d=new Date(r.date),p2=n=>String(n).padStart(2,"0");
   const fn="등산기록_"+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+"_"+p2(d.getHours())+p2(d.getMinutes())+".gpx";
