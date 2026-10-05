@@ -369,11 +369,12 @@ button{font-family:inherit;cursor:pointer}
 <div id="authModal" class="hidden">
   <div id="authBox">
     <h3>로그인</h3>
-    <div style="font-size:13px;color:#616161;line-height:1.6">이메일로 로그인 링크를 보내드려요.<br>로그인하면 기록이 서버에 안전하게 동기화됩니다.</div>
-    <label>이메일</label><input type="email" id="authEmail" placeholder="you@example.com" inputmode="email" autocomplete="email">
+    <div style="font-size:13px;color:#616161;line-height:1.6">아이디와 비밀번호로 로그인해요.<br>한 번 로그인하면 4시간 동안 유지됩니다.</div>
+    <label>아이디</label><input type="text" id="authId" placeholder="아이디" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <label>비밀번호</label><input type="password" id="authPw" placeholder="비밀번호" autocomplete="current-password">
     <div class="row">
       <button class="btn ghost" id="authCancel">취소</button>
-      <button class="btn primary" id="authSend">링크 보내기</button>
+      <button class="btn primary" id="authLogin">로그인</button>
     </div>
     <div id="authMsg" style="font-size:13px;margin-top:10px;line-height:1.5"></div>
   </div>
@@ -484,24 +485,39 @@ async function sbPull(){
   }catch(e){/* 오프라인이면 무시 */}
 }
 
-/* ===== Supabase Auth (이메일 매직링크) ===== */
+/* ===== Supabase Auth (아이디+비밀번호, 4시간 세션) ===== */
+const ID_DOMAIN="@hiking-map.local"; // 아이디 -> 내부 이메일 매핑 (Supabase는 이메일 형식이 필요)
+const LOGIN_TTL=4*60*60*1000, LS_LOGIN_AT="mtapp_login_at";
+function idToEmail(id){return id.trim().toLowerCase()+ID_DOMAIN;}
+function loginExpired(){
+  try{const t=parseInt(localStorage.getItem(LS_LOGIN_AT)||"0",10);return !(t&&Date.now()-t<LOGIN_TTL);}
+  catch(e){return true;}
+}
 async function initAuth(){
   if(!sb)return;
   try{
     const{data}=await sb.auth.getSession();
     sbUser=data&&data.session?data.session.user:null;
+    if(sbUser){
+      if(loginExpired()){await sb.auth.signOut();sbUser=null;} // 4시간 지났으면 로그아웃
+      else if(!localStorage.getItem(LS_LOGIN_AT)){try{localStorage.setItem(LS_LOGIN_AT,String(Date.now()));}catch(e){}}
+    }
   }catch(e){sbUser=null;}
   updateAuthUI();
   sb.auth.onAuthStateChange(async(ev,session)=>{
     sbUser=session?session.user:null;
     updateAuthUI();
     if(ev==="SIGNED_IN"&&sbUser){
+      try{localStorage.setItem(LS_LOGIN_AT,String(Date.now()));}catch(e){}
       $("#authModal").classList.add("hidden");
       toast("로그인됐어요. 기록을 동기화합니다.");
       await syncAfterLogin();
     }
-    if(ev==="SIGNED_OUT"){loginSynced=false;records=[];renderRecords();}
+    if(ev==="SIGNED_OUT"){loginSynced=false;records=[];try{localStorage.removeItem(LS_LOGIN_AT);}catch(e){}renderRecords();}
   });
+  setInterval(async()=>{ // 4시간 경과 시 자동 로그아웃
+    if(sbUser&&loginExpired()){await sb.auth.signOut();toast("로그인 유효시간(4시간)이 지나 로그아웃됐어요.");}
+  },60000);
 }
 let loginSynced=false;
 async function syncAfterLogin(){
@@ -517,26 +533,31 @@ async function syncAfterLogin(){
 }
 function updateAuthUI(){
   const b=$("#authBtn");if(!b)return;
-  if(sbUser){b.textContent="로그아웃";b.title=sbUser.email||"";}
+  if(sbUser){b.textContent="로그아웃";var em=sbUser.email||"";b.title=em.indexOf(ID_DOMAIN)>0?em.split("@")[0]:em;}
   else{b.textContent="로그인";b.title="";}
 }
 $("#authBtn").addEventListener("click",()=>{
   if(!sb){toast("Supabase 키를 먼저 입력해주세요.");return;}
-  if(sbUser){if(confirm("로그아웃할까요? (기록은 이 기기에 그대로 남아요)"))sb.auth.signOut();}
-  else{$("#authEmail").value="";$("#authMsg").textContent="";$("#authModal").classList.remove("hidden");}
+  if(sbUser){if(confirm("로그아웃할까요?"))sb.auth.signOut();}
+  else{$("#authId").value="";$("#authPw").value="";$("#authMsg").textContent="";$("#authModal").classList.remove("hidden");setTimeout(()=>{try{$("#authId").focus();}catch(e){}},50);}
 });
 $("#authCancel").addEventListener("click",()=>$("#authModal").classList.add("hidden"));
-$("#authSend").addEventListener("click",async()=>{
-  const email=$("#authEmail").value.trim();
-  if(!email||email.indexOf("@")<0){toast("이메일을 입력해주세요.");return;}
-  const btn=$("#authSend");btn.disabled=true;
+async function doPwLogin(){
+  const id=$("#authId").value.trim().toLowerCase();
+  const pw=$("#authPw").value;
+  const msg=$("#authMsg");
+  msg.style.color="#c62828";
+  if(!/^[a-z0-9._-]{3,24}$/.test(id)){msg.textContent="아이디는 영문/숫자 3~24자로 입력해주세요.";return;}
+  if(!pw){msg.textContent="비밀번호를 입력해주세요.";return;}
+  const btn=$("#authLogin");btn.disabled=true;msg.textContent="";
   try{
-    const{error}=await sb.auth.signInWithOtp({email:email,options:{emailRedirectTo:location.origin+location.pathname}});
-    const msg=$("#authMsg");
-    if(error){msg.style.color="#c62828";msg.textContent="전송 실패: "+error.message;}
-    else{msg.style.color="#2e7d32";msg.textContent="로그인 링크를 보냈어요. 메일함에서 링크를 눌러주세요.";}
+    const{error}=await sb.auth.signInWithPassword({email:idToEmail(id),password:pw});
+    if(error)msg.textContent="로그인 실패: "+error.message;
   }finally{btn.disabled=false;}
-});
+}
+$("#authLogin").addEventListener("click",doPwLogin);
+$("#authId").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();try{$("#authPw").focus();}catch(_){}}});
+$("#authPw").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();doPwLogin();}});
 
 /* ===== 지역(시도) 목록 ===== */
 const SIDO_ORDER=["서울","경기","인천","강원특별자치도","충북","충남","대전","세종","전북특별자치도","전남","광주","경북","경남","대구","울산","부산","제주특별자치도"];
